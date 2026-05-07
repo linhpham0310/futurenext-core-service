@@ -1,0 +1,24 @@
+// .vscode/settings.json
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode", // Đặt Prettier làm formatter mặc định
+  "editor.formatOnSave": true, // ✅ Tự động format code khi lưu file
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit" // ✅ Tự động sửa các lỗi ESLint có thể fix khi lưu (dùng "explicit" thay "true" để an toàn hơn)
+   },
+  "files.eol": "\n", // ✅ Đảm bảo dùng ký tự xuống dòng LF (Unix style)
+  "files.insertFinalNewline": true, // ✅ Luôn thêm một dòng trắng cuối file
+  "editor.tabSize": 2, // ✅ Thống nhất dùng 2 spaces cho mỗi tab
+  "[typescript]": { // Cấu hình riêng cho file TypeScript
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": { // Cấu hình riêng cho file TSX (React)
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": { // Cấu hình riêng cho file JSON
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[yaml]": { // Cấu hình riêng cho file YAML
+      "editor.defaultFormatter": "redhat.vscode-yaml" // Nếu dùng extension YAML
+  }
+  // Thêm các cấu hình khác nếu cần
+}
