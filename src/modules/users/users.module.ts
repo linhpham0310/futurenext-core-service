@@ -12,7 +12,7 @@ import { SharedModule } from '@/shared/shared.module'; // Import nếu UsersServ
 
 @Module({
   imports: [
-    // ✅ Đăng ký tất cả entities mà module này chịu trách nhiệm chính
+    //  Đăng ký tất cả entities mà module này chịu trách nhiệm chính
     TypeOrmModule.forFeature([
       User,
       UserCredential,
@@ -22,8 +22,9 @@ import { SharedModule } from '@/shared/shared.module'; // Import nếu UsersServ
     SharedModule, // Import để có thể inject AuditService,... vào UsersService
   ],
   controllers: [UsersController],
-  providers: [UsersService, UsersRepository], // ✅ Khai báo Service và Repository
-  // ✅ Xuất UsersService và UsersRepository để các module khác (vd: AuthModule) có thể inject
+  providers: [UsersService, UsersRepository], //  Khai báo Service và Repository
+  //  Xuất UsersService và UsersRepository để các module khác (vd: AuthModule) có thể inject
   exports: [UsersService, UsersRepository],
+
 })
 export class UsersModule {}

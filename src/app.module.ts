@@ -25,6 +25,7 @@ import { AppService } from './app.service';
     // --- 2. TypeOrmModule: Kết nối PostgreSQL ---
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
+
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const nodeEnv = configService.get<string>('NODE_ENV', 'development');
@@ -32,6 +33,7 @@ import { AppService } from './app.service';
         const dbUrl = configService.get<string>('DATABASE_URL');
 
         if (!dbUrl) {
+
           throw new Error(
             'FATAL ERROR: DATABASE_URL environment variable is not set.',
           );
@@ -55,6 +57,7 @@ import { AppService } from './app.service';
             ? ['query', 'error', 'warn']
             : ['error', 'warn'],
           ssl: !isDevelopment ? { rejectUnauthorized: false } : false,
+
         };
       },
     }),
