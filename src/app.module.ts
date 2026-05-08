@@ -24,7 +24,7 @@ import { AppService } from './app.service';
 
     // --- 2. TypeOrmModule: Kết nối PostgreSQL ---
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule], // Cần ConfigModule để inject ConfigService
+      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const nodeEnv = configService.get<string>('NODE_ENV', 'development');
@@ -32,7 +32,6 @@ import { AppService } from './app.service';
         const dbUrl = configService.get<string>('DATABASE_URL');
 
         if (!dbUrl) {
-          // Kiểm tra bắt buộc
           throw new Error(
             'FATAL ERROR: DATABASE_URL environment variable is not set.',
           );
@@ -43,18 +42,19 @@ import { AppService } from './app.service';
           'TypeOrmModule',
         );
 
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const pg = require('pg');
+
         return {
           type: 'postgres',
-          url: dbUrl, // Chuỗi kết nối từ .env / system env
-          autoLoadEntities: true, // Tự động load các @Entity()
-          synchronize: isDevelopment, // Chỉ true ở dev. Production PHẢI dùng migrations!
+          url: dbUrl,
+          driver: pg,
+          autoLoadEntities: true,
+          synchronize: isDevelopment,
           logging: isDevelopment
             ? ['query', 'error', 'warn']
-            : ['error', 'warn'], // Log SQL chi tiết ở dev
-          entities: [__dirname + '/../**/*.entity{.ts,.js}'], // Dự phòng nếu autoLoadEntities lỗi
-          ssl: !isDevelopment // Bật SSL cho production (Supabase/Cloud SQL)
-            ? { rejectUnauthorized: false } // Thường cần cho CSDL cloud
-            : false, // Tắt SSL khi kết nối Docker local
+            : ['error', 'warn'],
+          ssl: !isDevelopment ? { rejectUnauthorized: false } : false,
         };
       },
     }),
