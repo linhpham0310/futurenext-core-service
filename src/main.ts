@@ -3,13 +3,13 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { HttpExceptionFilter } from './shared/filters/http-exception.filter'; // Import filter
-import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService); // Lấy ConfigService từ app instance
-  const port = configService.get<number>('PORT', 3000); // Đọc PORT từ env, default 3000
-  const nodeEnv = configService.get<string>('NODE_ENV', 'development'); // Đọc NODE_ENV
+
+  // Đọc trực tiếp từ process.env thay vì ConfigService
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  const nodeEnv = process.env.NODE_ENV || 'development';
 
   // --- 1. Global Prefix ---
   app.setGlobalPrefix('api/v1'); // Tất cả API sẽ có dạng /api/v1/...
