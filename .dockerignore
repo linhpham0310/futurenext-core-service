@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Node modules
+node_modules
+
+# Environment variables
+.env
+.env.*
+
+# Build output
+dist
+
+# Test files
+test
+*.spec.ts
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Editor
+.vscode
+
+# Logs
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs
+README.md
+LICENSE
