@@ -1,0 +1,104 @@
+# .github/workflows/deploy-staging.yml
+# Workflow to automatically build, push, and deploy the Core Service to Cloud Run Staging on pushes to main.
+
+name: Deploy Core Service to Cloud Run (Staging) # Tên hiển thị trên tab Actions của GitHub
+
+on:
+  push:
+    branches: [main] # Trigger workflow khi có push (hoặc merge) vào nhánh 'main'
+
+# Định nghĩa các biến môi trường dùng chung trong workflow
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_ARTIFACT_REGISTRY: ${{ secrets.GCP_ARTIFACT_REGISTRY }}
+  GCP_CLOUD_RUN_SERVICE: ${{ secrets.GCP_CLOUD_RUN_SERVICE_STAGING }} # Deploy đến service Staging
+  GCP_CLOUD_RUN_REGION: ${{ secrets.GCP_CLOUD_RUN_REGION }}
+  # Đặt tên image với tag là Git commit SHA để đảm bảo tính duy nhất và truy vết
+  IMAGE_NAME: ${{ secrets.GCP_ARTIFACT_REGISTRY }}/futurenext-core-service:${{ github.sha }}
+
+jobs:
+  build-push-deploy: # Tên của job
+    name: Build, Push and Deploy to Staging # Tên hiển thị của job
+    runs-on: ubuntu-latest # Chạy job trên máy ảo Ubuntu mới nhất do GitHub cung cấp
+
+    # (Optional but Recommended for Security using Workload Identity Federation later)
+    # permissions:
+    #   contents: 'read'
+    #   id-token: 'write'
+
+    steps: # Các bước tuần tự trong job
+      # --- Bước 1: Checkout Code ---
+      - name: Checkout repository code
+        uses: actions/checkout@v4 # Action chính thức của GitHub để checkout code
+
+      # --- Bước 2: Setup Node.js ---
+      - name: Set up Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Chỉ định phiên bản Node.js LTS (nên khớp với Dockerfile)
+          cache: 'npm' # Bật cache cho npm dependencies để tăng tốc build sau này
+
+      # --- Bước 3: Install Dependencies ---
+      - name: Install NPM dependencies
+        run: npm ci # Dùng 'ci' thay vì 'install' để đảm bảo cài đặt nhất quán từ package-lock.json
+
+      # --- Bước 4 (Optional but Recommended): Run Tests ---
+      # Bỏ comment khi bạn đã có unit tests (Sprint 1+)
+      # - name: Run unit tests
+      #   run: npm run test
+
+      # --- Bước 5: Authenticate to Google Cloud ---
+      # Sử dụng Service Account Key JSON lưu trong secrets
+      - name: Authenticate to Google Cloud
+        id: auth # Đặt ID cho bước này để tham chiếu output nếu cần
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }} # Sử dụng secret chứa SA Key
+
+      # --- Bước 6: Setup Docker Buildx ---
+      # Cần thiết để sử dụng các tính năng build Docker nâng cao
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # --- Bước 7: Login to Artifact Registry ---
+      # Đăng nhập vào registry của GCP để có thể push image
+      - name: Login to Google Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GCP_ARTIFACT_REGISTRY.split('/')[0] }} # Trích xuất hostname của registry (vd: asia-southeast1-docker.pkg.dev)
+          username: _json_key # Phương thức xác thực khi dùng SA Key JSON
+          password: ${{ secrets.GCP_SA_KEY }} # Nội dung SA Key JSON
+
+      # --- Bước 8: Build and Push Docker Image ---
+      # Build image sử dụng Dockerfile trong repo và push lên Artifact Registry
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: . # Build context là thư mục gốc của repo
+          push: true # Đẩy image sau khi build thành công
+          tags: ${{ env.IMAGE_NAME }} # Gán tag cho image (bao gồm commit SHA)
+          cache-from: type=gha # Sử dụng cache từ GitHub Actions (nếu có)
+          cache-to: type=gha,mode=max # Lưu cache build lên GitHub Actions
+
+      # --- Bước 9: Deploy to Cloud Run Staging ---
+      # Deploy image vừa push lên Cloud Run service Staging
+      - name: Deploy container image to Cloud Run Staging
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.GCP_CLOUD_RUN_SERVICE }} # Tên service Staging
+          region: ${{ env.GCP_CLOUD_RUN_REGION }} # Region của service
+          image: ${{ env.IMAGE_NAME }} # Image vừa build và push
+          # --- Cấu hình Environment Variables cho Staging ---
+          env_vars: | # Sử dụng định dạng multi-line YAML string
+            NODE_ENV=staging # Đặt môi trường là staging
+            PORT=8080 # Cloud Run thường lắng nghe trên port 8080
+            # !!! QUAN TRỌNG: KHÔNG đặt secrets (DB_URL, REDIS_URL, JWT_SECRET) trực tiếp ở đây !!!
+            # Secrets sẽ được cấu hình riêng qua Secret Manager hoặc Cloud Run Secrets sau này.
+            # Tạm thời để trống hoặc chỉ đặt các biến không nhạy cảm nếu cần.
+            # Ví dụ (chỉ để minh họa, sẽ thay bằng secrets):
+            # DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }} # Nên tạo secret riêng cho staging DB URL
+            # REDIS_URL=${{ secrets.STAGING_REDIS_URL }}       # Nên tạo secret riêng cho staging Redis URL
+            # JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}     # Nên tạo secret riêng cho staging JWT Secret
+          # --- (Tùy chọn) Cấu hình khác cho Cloud Run ---
+          # flags: '--allow-unauthenticated' # Đảm bảo service vẫn cho phép truy cập không xác thực (nếu cần)
+          # revision_suffix: ${{ github.sha }} # Thêm commit SHA vào tên revision (tùy chọn)
