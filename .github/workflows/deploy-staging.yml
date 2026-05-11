@@ -39,6 +39,7 @@ jobs:
         [cite_start]uses: actions/setup-node@v4 [cite: 4860]
         with:
           [cite_start]node-version: '22.12' # Sử dụng phiên bản Node LTS [cite: 4862]
+          cache: 'npm'
 
       # Bước 3: Cài đặt dependencies
       - name: Install dependencies
