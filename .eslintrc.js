@@ -1,12 +1,17 @@
 module.exports = {
-  parser: "@typescript-eslint/parser",
-  plugins: ["@typescript-eslint"],
+  parser: '@typescript-eslint/parser',
+  plugins: ['@typescript-eslint'],
   extends: [
-    "plugin:@typescript-eslint/recommended",
-    "plugin:prettier/recommended", // tích hợp Prettier, tắt rule ESLint xung đột
+    'plugin:@typescript-eslint/recommended',
+    'plugin:prettier/recommended', // tích hợp Prettier, tắt rule ESLint xung đột
   ],
   rules: {
-    // thêm rules tùy chỉnh ở đây, ví dụ:
-    // '@typescript-eslint/explicit-function-return-type': 'off',
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-floating-promises': 'warn',
+    },
   },
 };
