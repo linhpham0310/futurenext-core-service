@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UsersRepository } from '@/modules/users/repositories/users.repository'; // Ví dụ import repo từ module khác
-import { HashingService } from '@/shared/providers/hashing.service'; // Ví dụ import service dùng chung
-import { AuditService } from '@/shared/providers/audit.service'; // Ví dụ import service dùng chung
+import { HashingService } from '@/shared/providers/hashing/hashing.service'; // Ví dụ import service dùng chung
+import { AuditService } from '@/shared/providers/audit/audit.service'; // Ví dụ import service dùng chung
 // Import các DTOs, Entities khi cần
 
 @Injectable()

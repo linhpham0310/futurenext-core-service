@@ -3,73 +3,41 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  CreateDateColumn,
+  Index,
   ManyToOne,
   JoinColumn,
-  CreateDateColumn, // Chỉ cần CreateDateColumn, không cần UpdateDateColumn
-  Index,
+  Check,
 } from 'typeorm';
 import { User } from './user.entity';
 
-/**
- * Đại diện cho bảng 'user_consents'.
- * Ghi lại bằng chứng về việc người dùng đồng ý với một phiên bản cụ thể
- * của Điều khoản dịch vụ hoặc Chính sách bảo mật.
- */
-@Entity('user_consents') // Ánh xạ tới bảng 'user_consents'
+@Entity('user_consents')
+@Index('idx_user_consents_user_id', ['userId'])
+@Check(`length(consent_version) > 0 AND length(consent_version) <= 50`)
+@Check(`user_agent IS NULL OR length(user_agent) <= 512`)
 export class UserConsent {
-  /**
-   * Khóa chính duy nhất cho mỗi bản ghi đồng ý.
-   */
-  @PrimaryGeneratedColumn('uuid') // Khóa chính UUID [cite: 1592]
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /**
-   * Khóa ngoại liên kết đến người dùng đã đưa ra sự đồng ý.
-   */
-  @Column({ type: 'uuid' }) // Khóa ngoại tới users.id [cite: 1593]
-  @Index() // Index để tìm consent theo user
+  @Column('uuid', { name: 'user_id', nullable: false })
   userId: string;
 
-  /**
-   * Phiên bản của tài liệu (ví dụ: Điều khoản dịch vụ) mà người dùng đã đồng ý.
-   * Nên có định dạng nhất quán (ví dụ: 'tos_v2.1', 'privacy_v2025-10-26').
-   */
-  @Column({ type: 'text' }) // Lưu phiên bản consent [cite: 1594]
+  @Column('varchar', { name: 'consent_version', length: 50, nullable: false })
   consentVersion: string;
 
-  /**
-   * Thời điểm chính xác người dùng đưa ra sự đồng ý.
-   * **QUAN TRỌNG:** Giá trị này nên được lấy từ server tại thời điểm ghi nhận, không phải từ client.
-   */
-  @Column({ type: 'timestamptz' }) // Thời điểm đồng ý [cite: 1595]
+  @Column('timestamptz', { name: 'consent_timestamp', nullable: false })
   consentTimestamp: Date;
 
-  /**
-   * Địa chỉ IP của người dùng tại thời điểm đồng ý (nếu có thể thu thập).
-   * Cung cấp thêm bằng chứng.
-   */
-  @Column({ type: 'inet', nullable: true }) // Kiểu inet, cho phép null [cite: 1598]
-  ipAddress: string | null;
+  @Column('inet', { name: 'ip_address', nullable: true })
+  ipAddress?: string;
 
-  /**
-   * Chuỗi User Agent của trình duyệt/client tại thời điểm đồng ý (nếu có thể thu thập).
-   * Cung cấp thêm bằng chứng.
-   */
-  @Column({ type: 'text', nullable: true }) // Kiểu text, cho phép null [cite: 1599]
-  userAgent: string | null;
+  @Column('varchar', { name: 'user_agent', length: 512, nullable: true })
+  userAgent?: string;
 
-  /**
-   * Thời điểm bản ghi này được tạo trong CSDL.
-   */
-  @CreateDateColumn({ type: 'timestamptz' }) // Thời điểm tạo bản ghi [cite: 1600]
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
-  // --- Định nghĩa Quan hệ ManyToOne ---
-  /**
-   * Quan hệ Nhiều-Một: Nhiều bản ghi consent có thể thuộc về một User.
-   * onDelete: 'CASCADE': Nếu User bị xóa, các bản ghi consent cũng xóa theo.
-   */
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'userId' }) // Chỉ định khóa ngoại [cite: 1593]
+  @ManyToOne(() => User, (user) => user.consents, { onDelete: 'CASCADE' }) // Quan hệ ngược lại
+  @JoinColumn({ name: 'user_id' })
   user: User;
 }
