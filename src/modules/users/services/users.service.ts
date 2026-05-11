@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { UsersRepository } from '../repositories/users.repository';
-import { AuditService } from '@/shared/providers/audit.service';
+import { AuditService } from '@/shared/providers/audit/audit.service';
 // Import entities, DTOs khi cần
 
 @Injectable()

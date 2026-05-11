@@ -33,7 +33,6 @@ import { AppService } from './app.service';
         const dbUrl = configService.get<string>('DATABASE_URL');
 
         if (!dbUrl) {
-
           throw new Error(
             'FATAL ERROR: DATABASE_URL environment variable is not set.',
           );
@@ -52,12 +51,11 @@ import { AppService } from './app.service';
           url: dbUrl,
           driver: pg,
           autoLoadEntities: true,
-          synchronize: isDevelopment,
+          synchronize: false,
           logging: isDevelopment
             ? ['query', 'error', 'warn']
             : ['error', 'warn'],
           ssl: !isDevelopment ? { rejectUnauthorized: false } : false,
-
         };
       },
     }),
