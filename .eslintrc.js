@@ -6,12 +6,7 @@ module.exports = {
     'plugin:prettier/recommended', // tích hợp Prettier, tắt rule ESLint xung đột
   ],
   rules: {
-    rules: {
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-floating-promises': 'warn',
-    },
+    // thêm rules tùy chỉnh ở đây, ví dụ:
+    // '@typescript-eslint/explicit-function-return-type': 'off',
   },
 };
