@@ -35,7 +35,7 @@ export enum UserStatus {
 @Check(`"role" IN ('student', 'teacher', 'admin')`)
 @Check(`"status" IN ('pending_email_verify', 'active', 'locked', 'deleted')`)
 @Check(`length(full_name) > 0 AND length(full_name) <= 100`)
-@Check(`email ~ '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'`)
+@Check(`email ~ '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'`)
 @Check(
   `avatar_url IS NULL OR (length(avatar_url) <= 1024 AND avatar_url ~ '^https?://.+')`,
 )

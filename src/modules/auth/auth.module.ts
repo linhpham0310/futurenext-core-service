@@ -48,6 +48,5 @@ import { EmailVerification } from './entities/email-verification.entity';
     // (Không cần khai báo Repository ở đây vì chúng thuộc UsersModule hoặc dùng TypeOrmModule.forFeature)
   ],
   exports: [AuthService, JwtModule, PassportModule], // Xuất các thành phần cần thiết cho module khác (nếu có)
-
 })
 export class AuthModule {}

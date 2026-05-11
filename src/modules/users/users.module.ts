@@ -25,6 +25,5 @@ import { SharedModule } from '@/shared/shared.module'; // Import nếu UsersServ
   providers: [UsersService, UsersRepository], //  Khai báo Service và Repository
   //  Xuất UsersService và UsersRepository để các module khác (vd: AuthModule) có thể inject
   exports: [UsersService, UsersRepository],
-
 })
 export class UsersModule {}
