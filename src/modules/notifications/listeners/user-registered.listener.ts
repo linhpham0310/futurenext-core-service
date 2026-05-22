@@ -33,7 +33,8 @@ export class UserRegisteredListener {
       `Received 'user.registered' event for: ${payload.user.email}`,
     );
     let auditAction: string;
-    const auditMeta: Record<string, any> = {
+    let auditMeta: Record<string, any> = {
+
       email: payload.user.email,
       userId: payload.user.id,
     };
