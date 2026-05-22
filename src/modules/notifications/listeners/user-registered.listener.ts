@@ -34,6 +34,7 @@ export class UserRegisteredListener {
     );
     let auditAction: string;
     let auditMeta: Record<string, any> = {
+
       email: payload.user.email,
       userId: payload.user.id,
     };

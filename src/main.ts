@@ -11,7 +11,6 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 3000); // Đọc PORT từ env, default 3000
   const nodeEnv = configService.get<string>('NODE_ENV', 'development'); // Đọc NODE_ENV
 
-
   // --- 1. Global Prefix ---
   app.setGlobalPrefix('api/v1'); // Tất cả API sẽ có dạng /api/v1/...
 
