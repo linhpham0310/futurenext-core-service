@@ -1,77 +1,52 @@
-# .github/workflows/deploy-staging.yml
-# Workflow này tự động build, test, và deploy backend lên Cloud Run (Staging)
-# khi có push hoặc merge vào nhánh 'main'.
-
 name: Deploy Core Service to Cloud Run (Staging)
 
 on:
   push:
-    branches: [ main ] # Trigger khi push/merge vào nhánh main [cite: 4846, 4979]
-  workflow_dispatch: # Cho phép chạy thủ công từ tab Actions
+    branches: [main]
+  workflow_dispatch:
 
-# Biến môi trường chung cho workflow
 env:
-  # Tên image sẽ được build, gắn tag bằng SHA của commit
-  IMAGE_NAME: ${{ secrets.GCP_ARTIFACT_REGISTRY }}/futurenext-core-service:${{ github.sha }} 
-  # Tên các secret trong GitHub Actions Secrets (đã tạo ở Sprint 0)
+  IMAGE_NAME: ${{ secrets.GCP_ARTIFACT_REGISTRY }}/futurenext-core-service:${{ github.sha }}
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }} # Service Account Key JSON
+  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
   GCP_ARTIFACT_REGISTRY: ${{ secrets.GCP_ARTIFACT_REGISTRY }}
-  GCP_CLOUD_RUN_SERVICE_STAGING: ${{ secrets.GCP_CLOUD_RUN_SERVICE_STAGING }} # Tên service Staging
-  GCP_CLOUD_RUN_REGION: ${{ secrets.GCP_CLOUD_RUN_REGION }} # Vd: asia-southeast1
-  STAGING_EMAIL_FROM: ${{ secrets.STAGING_EMAIL_FROM }} # Email From (không quá nhạy cảm, có thể để ở GitHub Secret)
+  GCP_CLOUD_RUN_SERVICE_STAGING: ${{ secrets.GCP_CLOUD_RUN_SERVICE_STAGING }}
+  GCP_CLOUD_RUN_REGION: ${{ secrets.GCP_CLOUD_RUN_REGION }}
 
 jobs:
   build-and-deploy:
     name: Build, Push, and Deploy
     runs-on: ubuntu-latest
-    permissions: # Cấp quyền cho GitHub Actions
-      contents: 'read'
-      id-token: 'write' # Cần cho xác thực GCP an toàn (Workload Identity) [cite: 4855]
 
     steps:
-      # Bước 1: Checkout mã nguồn
       - name: Checkout code
-        uses: actions/checkout@v4 [cite: 4858]
+        uses: actions/checkout@v4
 
-      # Bước 2: Cài đặt Node.js
       - name: Set up Node.js
-        uses: actions/setup-node@v4 [cite: 4860]
+        uses: actions/setup-node@v4
         with:
-          node-version: '22.12' # Sử dụng phiên bản Node LTS [cite: 4862]
-          cache: 'npm'
+          node-version: '20'
 
-      # Bước 3: Cài đặt dependencies
       - name: Install dependencies
-        run: npm ci # Dùng npm ci để cài đặt chính xác từ package-lock.json
+        run: npm ci
 
-      # Bước 4: Chạy Unit Tests (Bắt buộc)
-      - name: Run unit tests
-        run: npm run test # Đảm bảo test pass trước khi deploy
-
-      # Bước 5: Xác thực với Google Cloud
       - name: Authenticate to Google Cloud
-        id: 'auth'
-        uses: 'google-github-actions/auth@v2'
+        uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ env.GCP_SA_KEY }} [cite: 4873, 5005] # Dùng Service Account Key (đã lưu trong GitHub Secrets)
-          # Lưu ý: Workload Identity Federation là cách an toàn hơn [cite: 4875-4878], sẽ nâng cấp sau nếu cần
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # Bước 6: Cấu hình Docker Buildx
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3 [cite: 4882]
+        uses: docker/setup-buildx-action@v3
 
-      # Bước 7: Đăng nhập vào Google Artifact Registry
       - name: Login to Artifact Registry
-        uses: docker/login-action@v3 [cite: 4884]
+        uses: docker/login-action@v3
         with:
-          registry: ${{ env.GCP_ARTIFACT_REGISTRY_HOST | split('/')[0] }} # Trích xuất host (vd: asia-southeast1-docker.pkg.dev)
+          registry: asia-southeast1-docker.pkg.dev
           username: _json_key
-          password: ${{ env.GCP_SA_KEY }} [cite: 4889, 5021]
+          password: ${{ secrets.GCP_SA_KEY }}
 
-      # Bước 8: Build và Push Docker image
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5 [cite: 4891]
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
@@ -79,31 +54,24 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Bước 9: Deploy to Cloud Run (ĐÂY LÀ BƯỚC CẬP NHẬT CHÍNH)
       - name: Deploy to Cloud Run (Staging)
-        uses: google-github-actions/deploy-cloudrun@v2 [cite: 4900]
+        uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ env.GCP_CLOUD_RUN_SERVICE_STAGING }} # Tên service Staging
-          region: ${{ env.GCP_CLOUD_RUN_REGION }} # Region
-          image: ${{ env.IMAGE_NAME }} # Image vừa build
-
-          # --- Cấu hình Inject Secrets từ Secret Manager (S1-SYS-02) ---
-          # Map TÊN BIẾN MÔI TRƯỜNG (app đọc) = TÊN SECRET (trong Secret Manager):phiên bản
+          service: ${{ env.GCP_CLOUD_RUN_SERVICE_STAGING }}
+          region: ${{ env.GCP_CLOUD_RUN_REGION }}
+          image: ${{ env.IMAGE_NAME }}
           secrets: |
-            DATABASE_URL=futurenext-staging-db-url:latest
-            REDIS_URL=futurenext-staging-redis-url:latest
-            JWT_SECRET=futurenext-staging-jwt-secret:latest
-            REFRESH_TOKEN_SECRET=futurenext-staging-refresh-secret:latest
-            SMTP_HOST=futurenext-staging-smtp-host:latest
-            SMTP_PORT=futurenext-staging-smtp-port:latest
-            SMTP_USER=futurenext-staging-smtp-user:latest
-            SMTP_PASS=futurenext-staging-smtp-pass:latest
-            EMAIL_FROM=futurenext-staging-email-from:latest
-            EMAIL_SECURE=futurenext-staging-email-secure:latest
-
-          # --- Cấu hình Biến Môi trường KHÔNG NHẠY CẢM ---
+            DATABASE_URL=DATABASE_URL_STAGING:latest
+            REDIS_URL=REDIS_URL_STAGING:latest
+            JWT_SECRET=JWT_SECRET_STAGING:latest
+            REFRESH_TOKEN_SECRET=REFRESH_TOKEN_SECRET_STAGING:latest
+            SMTP_HOST=SMTP_HOST_STAGING:latest
+            SMTP_PORT=SMTP_PORT_STAGING:latest
+            SMTP_USER=SMTP_USER_STAGING:latest
+            SMTP_PASS=SMTP_PASS_STAGING:latest
+            EMAIL_FROM=EMAIL_FROM_STAGING:latest
+            EMAIL_SECURE=EMAIL_SECURE_STAGING:latest
           env_vars: |
-            NODE_ENV=staging # Đặt môi trường là staging
-            PORT=8080 # Cloud Run mặc định gửi request đến port 8080
-            CURRENT_CONSENT_VERSION=v2025-10-26 # Đặt phiên bản consent
-            # Thêm các biến không nhạy cảm khác nếu cần
+            NODE_ENV=staging
+            PORT=8080
+            CURRENT_CONSENT_VERSION=v2025-10-26
