@@ -60,23 +60,10 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Deploy to Cloud Run (Staging)
-        uses: google-github-actions/deploy-cloudrun@v1
-        with:
-          service: ${{ env.GCP_CLOUD_RUN_SERVICE_STAGING }}
-          region: ${{ env.GCP_CLOUD_RUN_REGION }}
-          image: ${{ env.IMAGE_NAME }}
-          secrets: |
-            DATABASE_URL=DATABASE_URL_STAGING:latest
-            REDIS_URL=REDIS_URL_STAGING:latest
-            JWT_SECRET=JWT_SECRET_STAGING:latest
-            REFRESH_TOKEN_SECRET=REFRESH_TOKEN_SECRET_STAGING:latest
-            SMTP_HOST=SMTP_HOST_STAGING:latest
-            SMTP_PORT=SMTP_PORT_STAGING:latest
-            SMTP_USER=SMTP_USER_STAGING:latest
-            SMTP_PASS=SMTP_PASS_STAGING:latest
-            EMAIL_FROM=EMAIL_FROM_STAGING:latest
-            EMAIL_SECURE=EMAIL_SECURE_STAGING:latest
-          env_vars: |
-            NODE_ENV=staging
-            PORT=8080
-            CURRENT_CONSENT_VERSION=v2025-10-26
+        run: |
+          gcloud run deploy ${{ env.GCP_CLOUD_RUN_SERVICE_STAGING }} \
+            --image ${{ env.IMAGE_NAME }} \
+            --region ${{ env.GCP_CLOUD_RUN_REGION }} \
+            --update-secrets DATABASE_URL=DATABASE_URL_STAGING:latest,REDIS_URL=REDIS_URL_STAGING:latest,JWT_SECRET=JWT_SECRET_STAGING:latest,REFRESH_TOKEN_SECRET=REFRESH_TOKEN_SECRET_STAGING:latest,SMTP_HOST=SMTP_HOST_STAGING:latest,SMTP_PORT=SMTP_PORT_STAGING:latest,SMTP_USER=SMTP_USER_STAGING:latest,SMTP_PASS=SMTP_PASS_STAGING:latest,EMAIL_FROM=EMAIL_FROM_STAGING:latest,EMAIL_SECURE=EMAIL_SECURE_STAGING:latest \
+            --set-env-vars NODE_ENV=staging,PORT=8080,CURRENT_CONSENT_VERSION=v2025-10-26 \
+            --platform managed
