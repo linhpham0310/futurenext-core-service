@@ -1,19 +1,25 @@
+// src/modules/users/services/users.service.ts
 import { Injectable } from '@nestjs/common';
-import { UsersRepository } from '../repositories/users.repository';
-import { AuditService } from '@/shared/providers/audit/audit.service';
-// Import entities, DTOs khi cần
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '../entities/user.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
-    private readonly usersRepository: UsersRepository,
-    // private readonly auditService: AuditService, // Inject nếu cần ghi log audit
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
   ) {}
 
-  // --- Methods nghiệp vụ sẽ triển khai ở Sprint 1-3 ---
-  // Ví dụ:
-  // async findProfileById(userId: string): Promise<Partial<User>> { /* ... */ }
-  // async updateProfile(userId: string, dto: UpdateProfileDto): Promise<User> { /* ... */ }
-  // async findAll(options: FindUsersQueryDto): Promise<{ data: User[]; meta: any }> { /* ... */ }
-  // async updateRole(userIdToUpdate: string, newRole: UserRole, actorId: string): Promise<User> { /* ... */ }
+  //  Thêm method này nếu chưa có
+  async findByEmail(email: string): Promise<User | null> {
+    return this.usersRepository.findOne({ where: { email } });
+  }
+
+  //  Hoặc method này
+  async findOneByEmail(email: string): Promise<User | null> {
+    return this.usersRepository.findOne({ where: { email } });
+  }
+
+  // Các method khác...
 }

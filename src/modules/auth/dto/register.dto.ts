@@ -7,7 +7,6 @@ import {
   Matches,
   MaxLength,
   IsBoolean,
-  Equals,
   IsIn,
   ValidateIf,
   IsOptional,

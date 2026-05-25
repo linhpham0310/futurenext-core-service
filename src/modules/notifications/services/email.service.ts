@@ -1,6 +1,7 @@
 /**
- * @file Service responsible for sending application emails (verification, password reset, etc.).
- * Uses the configured MailerService from @nestjs-modules/mailer.
+ * @file Placeholder service for sending emails.
+ * In development, it logs email content to the console.
+ * Should be replaced with actual email sending logic (e.g., using Nodemailer and an SMTP provider or transactional email API).
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer'; // Inject MailerService
@@ -24,7 +25,7 @@ export class EmailService {
    */
   async sendVerificationEmail(user: User, otp: string): Promise<void> {
     const subject = `[FutureNext] Mã kích hoạt tài khoản của bạn`;
-    const fromAddress = this.configService.get<string>('EMAIL_FROM');
+    const fromAddress = this.configService.get<string>('SMTP_FROM');
 
     // Basic, clean HTML template for verification
     const htmlContent = `
@@ -81,7 +82,7 @@ export class EmailService {
    */
   async sendPasswordResetEmail(user: User, otp: string): Promise<void> {
     const subject = `[FutureNext] Yêu cầu đặt lại mật khẩu của bạn`;
-    const fromAddress = this.configService.get<string>('EMAIL_FROM');
+    const fromAddress = this.configService.get<string>('SMTP_FROM');
 
     // Basic HTML template for password reset
     const htmlContent = `
