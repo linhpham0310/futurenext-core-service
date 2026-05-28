@@ -5,6 +5,7 @@ import { AuditService } from '@/shared/providers/audit/audit.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { HashingService } from '@/shared/providers/hashing/hashing.service';
+import { JwtService } from '@nestjs/jwt';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -37,6 +38,13 @@ describe('AuthService', () => {
         {
           provide: HashingService,
           useValue: { hash: jest.fn(), compare: jest.fn() },
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            sign: jest.fn(),
+            verify: jest.fn(),
+          },
         },
       ],
     }).compile();

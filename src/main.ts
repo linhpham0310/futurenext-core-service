@@ -12,7 +12,7 @@ async function bootstrap() {
   const nodeEnv = configService.get<string>('NODE_ENV', 'development'); // Đọc NODE_ENV
 
   // --- 1. Global Prefix ---
-  app.setGlobalPrefix(''); // Tất cả API sẽ có dạng /api/v1/...
+  app.setGlobalPrefix(''); // Tất cả API sẽ có dạng ...
 
   // --- 2. Global Validation Pipe ---
   app.useGlobalPipes(
@@ -34,12 +34,12 @@ async function bootstrap() {
   // --- 4. CORS for Development only ---
   if (nodeEnv === 'development') {
     app.enableCors({
-      origin: 'http://localhost:3000', // Cho phép frontend dev gọi tới
+      origin: 'http://localhost:3001', // Cho phép frontend dev gọi tới
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
       credentials: true, // Cho phép gửi/nhận cookie (quan trọng cho refresh token)
     });
     Logger.log(
-      'CORS enabled for development origin: http://localhost:3000',
+      'CORS enabled for development origin: http://localhost:3001',
       'Bootstrap',
     );
   } // Production CORS nên cấu hình ở tầng infrastructure (Cloud Run/Gateway)
