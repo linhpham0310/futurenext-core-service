@@ -1,52 +1,81 @@
+// src/modules/auth/auth.module.ts
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { PassportModule } from '@nestjs/passport';
+import { JwtModuleOptions } from '@nestjs/jwt';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigService, ConfigModule } from '@nestjs/config'; // Import ConfigModule
+import { EventEmitterModule } from '@nestjs/event-emitter'; // Import EventEmitterModule nếu chưa global
 import { AuthService } from './services/auth.service';
 import { AuthController } from './controllers/auth.controller';
-import { SharedModule } from 'src/shared/shared.module'; // Cần để inject HashingService, AuditService
-import { UsersModule } from '../users/users.module'; // Cần để inject UsersRepository/UsersService
-import { PassportModule } from '@nestjs/passport'; // Cần cho strategies
-import { JwtModule, JwtModuleOptions } from '@nestjs/jwt'; // Cần để tạo và xác thực JWT
-import { ConfigModule, ConfigService } from '@nestjs/config'; // Cần để đọc secrets/expiresIn
-import { JwtStrategy } from './strategies/jwt.strategy'; // Strategy cho Access Token
-import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy'; // Strategy cho Refresh Token
-import { TypeOrmModule } from '@nestjs/typeorm'; // Cần để đăng ký entities của module này
-import { AuthSession } from './entities/auth-session.entity';
-import { PasswordResetRequest } from './entities/password-reset-request.entity';
+// Import các Entities mà AuthService hoặc các thành phần khác trong module này cần
 import { EmailVerification } from './entities/email-verification.entity';
-
+import { AuthSession } from './entities/auth-session.entity';
+import { PasswordResetRequest } from './entities/password-reset-request.entity'; // Import luôn nếu dùng chung module
+import { User } from '../users/entities/user.entity'; // Cần cho AuthService nếu dùng EntityManager
+import { UserCredential } from '../users/entities/user-credential.entity'; // Cần cho AuthService
+import { UserConsent } from '../users/entities/user-consent.entity'; // Cần cho AuthService
+// Import Strategies và Guards (sẽ tạo ở task sau)
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy'; // <<<--- IMPORT
+import { SharedModule } from '@/shared/shared.module';
+import { UsersModule } from '../users/users.module';
+import { EmailService } from '../notifications/services/email.service'; // đúng path của bạn
+import { MailerModule } from '@nestjs-modules/mailer';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { AuthListener } from './listeners/auth.listener';
 @Module({
   imports: [
-    SharedModule, // Để inject HashingService, AuditService...
-    UsersModule, // Để inject UsersRepository, UsersService...
-    PassportModule.register({ defaultStrategy: 'jwt' }), // Đăng ký Passport với strategy mặc định là 'jwt'
-    // --- Cấu hình JwtModule bất đồng bộ để đọc config từ .env ---
+    ConfigModule, // Cần ConfigService
+    // Đăng ký các Entities với TypeORM trong scope của module này
+    TypeOrmModule.forFeature([
+      User, // Cần thiết nếu AuthService dùng EntityManager hoặc UserRepository
+      UserCredential,
+      UserConsent,
+      EmailVerification,
+      AuthSession,
+      PasswordResetRequest, // Đăng ký luôn nếu thuộc module này
+    ]),
+    UsersModule, //  BẮT BUỘC
+    NotificationsModule,
+
+    PassportModule.register({ defaultStrategy: 'jwt' }), // Cấu hình Passport
+    // Cấu hình JwtModule động để đọc secret/expiresIn từ ConfigService
     JwtModule.registerAsync({
-      imports: [ConfigModule], // Import ConfigModule
-      inject: [ConfigService], // Inject ConfigService
+      imports: [ConfigModule], // Import ConfigModule vào đây
+      inject: [ConfigService],
       useFactory: (configService: ConfigService): JwtModuleOptions => {
-        const secret = configService.get<string>('JWT_SECRET');
-        if (!secret) throw new Error('JWT_SECRET is not set');
+        // Đọc string từ env
+        const expiresInString =
+          configService.get<string>('JWT_EXPIRES_IN') || '900';
+
+        // Chuyển sang number (giây)
+        const expiresIn = Number(expiresInString);
+
         return {
-          secret,
+          secret: configService.get<string>('JWT_SECRET'),
           signOptions: {
-            expiresIn: '15m',
+            expiresIn: isNaN(expiresIn) ? undefined : expiresIn, // Nếu không phải số thì bỏ qua
           },
         };
       },
     }),
-    // Đăng ký các entities của module Auth
-    TypeOrmModule.forFeature([
-      AuthSession,
-      EmailVerification,
-      PasswordResetRequest,
-    ]),
+    EventEmitterModule.forRoot(),
+    // Import EventEmitterModule nếu nó chưa được set global trong AppModule
+    // EventEmitterModule,
+    // SharedModule thường là global, không cần import ở đây
   ],
-  controllers: [AuthController],
+  controllers: [AuthController], // Khai báo Controller
   providers: [
-    AuthService,
-    JwtStrategy, // Phải khai báo strategy ở đây để PassportModule tìm thấy
-    JwtRefreshStrategy, // Phải khai báo strategy ở đây
-    // (Không cần khai báo Repository ở đây vì chúng thuộc UsersModule hoặc dùng TypeOrmModule.forFeature)
+    AuthService, // Khai báo Service
+    // Khai báo Strategies và Guards ở đây khi tạo
+    JwtStrategy,
+    JwtRefreshStrategy,
+    EmailService,
+    AuthListener,
+    // Guard thường không cần khai báo ở đây nếu chỉ dùng @UseGuards
   ],
-  exports: [AuthService, JwtModule, PassportModule], // Xuất các thành phần cần thiết cho module khác (nếu có)
+  // Export AuthService nếu module khác cần inject trực tiếp (thường không cần)
+  exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}

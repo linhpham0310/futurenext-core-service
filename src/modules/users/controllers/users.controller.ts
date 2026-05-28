@@ -9,7 +9,6 @@ import {
   Query,
 } from '@nestjs/common';
 import { UsersService } from '../services/users.service';
-import { JwtAuthGuard } from 'src/shared/guards/jwt-auth.guard'; // Guard xác thực
 // Import RolesGuard, DTOs khi cần
 
 @Controller('users') // Sẽ có prefix cụ thể hơn cho từng route sau này (vd: @Controller('me'), @Controller('admin/users'))

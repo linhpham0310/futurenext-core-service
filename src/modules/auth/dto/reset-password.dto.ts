@@ -4,7 +4,6 @@ import {
   IsNotEmpty,
   IsString,
   Length,
-  MinLength,
   Matches,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
