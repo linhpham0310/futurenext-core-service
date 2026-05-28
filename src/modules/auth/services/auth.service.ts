@@ -6,6 +6,7 @@ import {
   Logger,
   BadRequestException,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { EntityManager, IsNull, MoreThan, Repository } from 'typeorm';
@@ -27,6 +28,10 @@ import { UserConsent } from '@/modules/users/entities/user-consent.entity';
 import { EmailVerification } from '../entities/email-verification.entity';
 import { randomInt } from 'crypto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
+import { JwtService } from '@nestjs/jwt';
+import { AuthSession } from '../entities/auth-session.entity';
+import { LoginDto } from '../dto/login.dto';
+import ms from 'ms';
 
 @Injectable()
 export class AuthService {
@@ -40,6 +45,9 @@ export class AuthService {
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
     private readonly hashingService: HashingService,
+    private readonly jwtService: JwtService, // <<<--- INJECT JwtService
+    // Inject LoginAttemptService nếu có
+    // private readonly loginAttemptService: LoginAttemptService,
   ) {}
 
   /**
@@ -414,5 +422,285 @@ export class AuthService {
     return {
       message: 'Xác thực email thành công. Bạn có thể đăng nhập ngay bây giờ.',
     };
+  }
+
+  /**
+   * Handles user login attempts.
+   * Includes checks for email verification, account locks, password matching,
+   * implements lockout mechanism on repeated failures, and generates JWTs upon success.
+   * @param dto - Validated login credentials (email, password).
+   * @param ip - IP address of the request origin.
+   * @param userAgent - User agent string of the client.
+   * @returns An object containing the access token, refresh token (to be set in cookie), and user info.
+   * @throws UnauthorizedException for invalid credentials.
+   * @throws ForbiddenException if account is unverified or locked.
+   * @throws InternalServerErrorException on unexpected errors.
+   */
+  async login(
+    dto: LoginDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: { id: string; fullName: string; role: UserRole };
+  }> {
+    const email = dto.email; // Đã chuẩn hóa ở DTO
+    this.logger.log(`Login attempt for email: ${email}`);
+    let user: User | null = null; // Khai báo user ở scope rộng hơn
+
+    try {
+      // 1. Tìm user và credential (quan trọng: lấy cả credential)
+      // Dùng query builder để join và chỉ lấy các trường cần thiết, bao gồm cả passwordHash
+      user = await this.entityManager
+        .createQueryBuilder(User, 'user')
+        .leftJoinAndSelect('user.credential', 'credential') // Join và select credential
+        .where('user.email = :email', { email })
+        .select([
+          // Chỉ định rõ các trường cần lấy để tối ưu
+          'user.id',
+          'user.email',
+          'user.fullName',
+          'user.role',
+          'user.status',
+          'user.lockedUntil',
+          'credential.passwordHash',
+          'credential.userId', // Cần userId để đảm bảo join thành công
+        ])
+        .getOne();
+
+      // 2. Lỗi: User không tồn tại
+      if (!user || !user.credential) {
+        this.logger.warn(`Login failed: User not found - ${email}`);
+        this.auditService.log({
+          action: 'login.failed',
+          ip,
+          userAgent,
+          meta: { email, reason: 'user_not_found' },
+        });
+        throw new UnauthorizedException('Email hoặc mật khẩu không đúng.'); // Thông báo chung chung -> Bảo mật
+      }
+
+      // 3. [UC02.6] Gate Verify Email: Kiểm tra email đã xác thực
+      if (user.status === UserStatus.PENDING_EMAIL_VERIFY) {
+        this.logger.warn(
+          `Login failed: Email not verified - ${email} (User ID: ${user.id})`,
+        );
+        this.auditService.log({
+          action: 'login.failed',
+          actorId: user.id,
+          ip,
+          userAgent,
+          meta: { email, reason: 'email_not_verified' },
+        });
+        throw new ForbiddenException(
+          'Tài khoản của bạn chưa được kích hoạt. Vui lòng kiểm tra email.',
+        );
+      }
+
+      // 4. [UC02.5] Lockout Check (DB): Kiểm tra tài khoản bị khóa vĩnh viễn hoặc tạm thời
+      if (user.status === UserStatus.LOCKED) {
+        // Kiểm tra khóa tạm thời
+        if (user.lockedUntil && user.lockedUntil > new Date()) {
+          this.logger.warn(
+            `Login failed: Account locked (DB) - ${email} (User ID: ${user.id}) until ${user.lockedUntil}`,
+          );
+          this.auditService.log({
+            action: 'login.failed',
+            actorId: user.id,
+            ip,
+            userAgent,
+            meta: {
+              email,
+              reason: 'account_locked_db',
+              lockedUntil: user.lockedUntil,
+            },
+          });
+          // Tính thời gian còn lại (cần hàm helper hoặc thư viện)
+          const remainingTime = ms(user.lockedUntil.getTime() - Date.now(), {
+            long: true,
+          });
+          throw new ForbiddenException(
+            `Tài khoản đang bị khóa tạm thời. Vui lòng thử lại sau ${remainingTime}.`,
+          );
+        } else if (!user.lockedUntil) {
+          // Trường hợp bị khóa vĩnh viễn (status='locked' nhưng lockedUntil là null) - tùy nghiệp vụ
+          this.logger.warn(
+            `Login failed: Account permanently locked (DB) - ${email} (User ID: ${user.id})`,
+          );
+          this.auditService.log({
+            action: 'login.failed',
+            actorId: user.id,
+            ip,
+            userAgent,
+            meta: { email, reason: 'account_locked_permanent' },
+          });
+          throw new ForbiddenException(`Tài khoản này đã bị khóa.`);
+        }
+        // Nếu lockedUntil đã qua, coi như hết khóa tạm thời, tiếp tục kiểm tra mật khẩu
+        this.logger.log(
+          `Account lock expired for ${email}. Proceeding with login.`,
+        );
+      }
+
+      // TODO: 4b. [UC02.5] Lockout Check (Cache/Redis): Kiểm tra khóa tạm thời từ cache (nếu dùng LoginAttemptService)
+      // const isLockedByCache = await this.loginAttemptService.checkLockout(email);
+      // if (isLockedByCache) {
+      //    this.logger.warn(`Login failed: Account locked (Cache) - ${email}`);
+      //    this.auditService.log({ action: 'login.failed', actorId: user.id, ip, userAgent, meta: { email, reason: 'account_locked_cache' }});
+      //    throw new ForbiddenException(`Bạn đã thử quá nhiều lần. Tài khoản bị khóa tạm thời.`);
+      // }
+
+      // 5. So sánh mật khẩu
+      const isPasswordMatch = await this.hashingService.compare(
+        dto.password,
+        user.credential.passwordHash,
+      );
+
+      // 6. Xử lý khi Mật khẩu SAI
+      if (!isPasswordMatch) {
+        this.logger.warn(
+          `Login failed: Invalid password - ${email} (User ID: ${user.id})`,
+        );
+        const failedAttempts = 1; // Giá trị mặc định nếu không dùng Redis
+
+        // --- [UC02.5] Ghi nhận thất bại và kiểm tra lockout ---
+        // (Logic với Redis - nếu dùng LoginAttemptService)
+        // failedAttempts = await this.loginAttemptService.incrementFailure(email);
+        // this.logger.log(`Failed login attempt ${failedAttempts} for ${email}`);
+
+        // // Kiểm tra ngưỡng lockout (ví dụ: 10 lần)
+        // const loginFailureLimit = this.configService.get<number>('LOGIN_FAILURE_LIMIT', 10);
+        // if (failedAttempts >= loginFailureLimit) {
+        //   const lockDurationMs = ms(this.configService.get<string>('LOGIN_LOCKOUT_DURATION', '15m')); // Đọc thời gian khóa từ config
+        //   const lockedUntil = new Date(Date.now() + lockDurationMs);
+
+        //   // Cập nhật CSDL để khóa tài khoản
+        //   await this.entityManager.update(User, user.id, { status: UserStatus.LOCKED, lockedUntil });
+        //   this.logger.warn(`Account locked (DB) due to too many failed attempts: ${email} until ${lockedUntil}`);
+        //   this.auditService.log({ action: 'login.failed_locked', actorId: user.id, ip, userAgent, meta: { email, attempts: failedAttempts } });
+
+        //   // Reset bộ đếm lỗi trong Redis sau khi khóa DB
+        //   await this.loginAttemptService.resetFailures(email);
+
+        //   throw new ForbiddenException(`Bạn đã nhập sai mật khẩu quá nhiều lần. Tài khoản bị khóa trong ${ms(lockDurationMs, { long: true })}.`);
+        // }
+        // (Kết thúc logic với Redis)
+
+        // Ghi log audit cho lần nhập sai (luôn ghi)
+        this.auditService.log({
+          action: 'login.failed',
+          actorId: user.id,
+          ip,
+          userAgent,
+          meta: { email, reason: 'invalid_password', attempts: failedAttempts },
+        });
+        // Ném lỗi 401
+        throw new UnauthorizedException('Email hoặc mật khẩu không đúng.');
+      }
+
+      // --- LUỒNG THÀNH CÔNG: Mật khẩu ĐÚNG ---
+      this.logger.log(`Login successful for: ${email} (User ID: ${user.id})`);
+
+      // 7. Reset bộ đếm lỗi (nếu có) [cite: 2861-2862]
+      // await this.loginAttemptService.resetFailures(email); // Chỉ chạy nếu dùng LoginAttemptService
+
+      // 8. Cập nhật lastLoginAt và mở khóa nếu cần [cite: 2863]
+      // Dùng transaction nhỏ để đảm bảo cả hai cập nhật thành công
+      await this.entityManager.transaction(async (txManager) => {
+        if (!user) throw new InternalServerErrorException('User not found');
+        await txManager.update(User, user.id, {
+          lastLoginAt: new Date(),
+          status: UserStatus.ACTIVE, // Đảm bảo status là active
+          lockedUntil: undefined, // Xóa thời gian khóa tạm thời
+        });
+      });
+
+      // 9. Tạo Access Token và Refresh Token
+      const accessTokenPayload = { sub: user.id, role: user.role as string };
+      const refreshTokenPayload = { sub: user.id }; // Refresh token chỉ chứa userId
+
+      const accessToken = await this.jwtService.signAsync(accessTokenPayload, {
+        secret: this.configService.getOrThrow<string>('JWT_SECRET'),
+        expiresIn: this.configService.get<string>(
+          'JWT_EXPIRES_IN',
+          '15m',
+        ) as any, // Dùng getOrThrow để đảm bảo secret tồn tại
+      });
+
+      const refreshToken = await this.jwtService.signAsync(
+        refreshTokenPayload,
+        {
+          secret: this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET'),
+          expiresIn: this.configService.get<string>(
+            'REFRESH_TOKEN_EXPIRES_IN',
+            '7d',
+          ) as any,
+        },
+      );
+
+      // 10. Hash Refresh Token và Lưu Session vào DB [cite: 2867-2869]
+      const refreshTokenHash = await this.hashingService.hash(refreshToken);
+      const refreshTokenExpiresIn = this.configService.get<string>(
+        'REFRESH_TOKEN_EXPIRES_IN',
+        '7d',
+      );
+      if (!refreshTokenExpiresIn) {
+        throw new Error('REFRESH_TOKEN_EXPIRES_IN is not defined');
+      }
+      const expiresAt = new Date(
+        Date.now() + ms(refreshTokenExpiresIn as ms.StringValue),
+      ); // Tính toán thời điểm hết hạn
+
+      const session = this.entityManager.create(AuthSession, {
+        userId: user.id,
+        refreshTokenHash: refreshTokenHash, // Lưu hash
+        roleAtLogin: user.role, // Lưu role lúc đăng nhập
+        ip: ip,
+        userAgent: userAgent,
+        expiresAt: expiresAt, // Thời điểm hết hạn của RT
+        // revokedAt: null (mặc định)
+      });
+      await this.entityManager.save(AuthSession, session); // Lưu session
+      this.logger.log(`AuthSession created for user ${user.id}`);
+
+      // 11. Ghi log audit thành công [cite: 2871]
+      this.auditService.log({
+        action: 'login.success',
+        actorId: user.id,
+        ip,
+        userAgent,
+        meta: { email },
+      });
+
+      // 12. Trả về kết quả cho Controller [cite: 2872-2878]
+      return {
+        accessToken,
+        refreshToken, // Trả về refreshToken để Controller set cookie
+        user: { id: user.id, fullName: user.fullName, role: user.role }, // Trả thông tin cơ bản của user
+      };
+    } catch (error) {
+      // Bắt các lỗi đã throw (Unauthorized, Forbidden) và throw lại
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      // Bắt các lỗi không mong muốn khác
+      this.logger.error(
+        `Unexpected error during login for ${email}:`,
+        error.stack,
+      );
+      this.auditService.log({
+        action: 'login.failed_unexpected',
+        ip,
+        userAgent,
+        meta: { email: email, error: error.message },
+      });
+      throw new InternalServerErrorException(
+        'Đã xảy ra lỗi trong quá trình đăng nhập.',
+      );
+    }
   }
 }
