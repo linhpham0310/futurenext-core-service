@@ -1,24 +1,31 @@
-# Dockerfile
+# Dockerfile for NestJS Core Service
+
+# ---- 1. Builder Stage ----
 FROM node:20-alpine AS builder
+
 WORKDIR /app
+
 COPY package*.json ./
+
 RUN npm ci
+
 COPY . .
+
 RUN npm run build
 
-FROM node:20-alpine
+# ---- 2. Production Stage ----
+FROM node:20-alpine AS production
+
 WORKDIR /app
-COPY --from=builder /app/dist ./dist
+
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
 
-#  Đảm bảo PORT được expose
-ENV PORT=8080
-EXPOSE ${PORT}
+RUN npm ci --only=production && npm cache clean --force
 
-#  Health check cho Cloud Run
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:${PORT}/health', (r) => {r.statusCode === 200 ? process.exit(0) : process.exit(1)})"
+COPY --from=builder /app/dist ./dist
 
-#  Chạy với node để có logs chi tiết
+ENV NODE_ENV production
+
+EXPOSE ${PORT:-8080}
+
 CMD ["node", "dist/main"]
