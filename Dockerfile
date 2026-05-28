@@ -1,40 +1,24 @@
-# Dockerfile for NestJS Core Service
-
-# ---- 1. Builder Stage ----
+# Dockerfile
 FROM node:20-alpine AS builder
-
-# Tăng timeout cho npm
-ENV NPM_CONFIG_FETCH_RETRIES=5
-ENV NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
-ENV NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
-
 WORKDIR /app
-
 COPY package*.json ./
-
-RUN npm ci --no-audit --no-fund --verbose || \
-    npm ci --no-audit --no-fund --verbose || \
-    npm install --no-audit --no-fund
-
+RUN npm ci
 COPY . .
-
 RUN npm run build
 
-# ---- 2. Production Stage ----
-FROM node:20-alpine AS production
-
+FROM node:20-alpine
 WORKDIR /app
-
-COPY package*.json ./
-
-RUN npm ci --omit=dev --no-audit --no-fund --verbose && \
-    npm cache clean --force
-
 COPY --from=builder /app/dist ./dist
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-ENV NODE_ENV production
+#  Đảm bảo PORT được expose
 ENV PORT=8080
-
 EXPOSE ${PORT}
 
+#  Health check cho Cloud Run
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:${PORT}/health', (r) => {r.statusCode === 200 ? process.exit(0) : process.exit(1)})"
+
+#  Chạy với node để có logs chi tiết
 CMD ["node", "dist/main"]
