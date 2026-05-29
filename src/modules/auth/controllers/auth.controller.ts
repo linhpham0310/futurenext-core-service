@@ -23,6 +23,7 @@ import { UserRole } from '@/modules/users/entities/user.entity';
 import ms from 'ms';
 import { JwtRefreshGuard } from '../guards/jwt-refresh.guard';
 import { RequestWithUser } from '../interfaces/request-with-user.interface';
+import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -136,5 +137,40 @@ export class AuthController {
 
     // Return ONLY the new Access Token in the response body [cite: 3050]
     return { accessToken: newAccessToken };
+  }
+
+  /**
+   * Handles user logout requests. Requires authentication (valid Access Token).
+   * Revokes the session on the server and clears the refresh token cookie on the client.
+   * @param req - Express Request object containing user info (from JwtAuthGuard) and cookies.
+   * @param res - Express Response object for clearing the cookie.
+   * @returns Success message.
+   */
+  @UseGuards(JwtAuthGuard) // <<<--- YÊU CẦU ĐĂNG NHẬP (Access Token hợp lệ)
+  @Post('logout')
+  @HttpCode(HttpStatus.OK) // Logout thành công trả về 200 OK
+  async logout(
+    @Req() req: RequestWithUser, // Dùng interface tùy chỉnh
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ message: string }> {
+    const userId = req.user.userId; // Lấy userId từ payload của Access Token
+    const refreshToken = req.cookies.refreshToken; // Đọc refreshToken từ cookie [cite: 6899]
+    this.logger.log(`Logout request received for user ID: ${userId}`);
+
+    // Gọi AuthService để xử lý việc thu hồi session phía server
+    const result = await this.authService.handleLogout(refreshToken, userId);
+
+    // --- Xóa cookie refreshToken phía client ---
+    // Dù server có revoke thành công hay không, client cần xóa cookie
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: this.configService.get<string>('NODE_ENV') !== 'development',
+      sameSite: 'strict',
+      path: '/auth/refresh', // Path phải khớp với lúc set cookie
+    });
+    this.logger.log(`Refresh token cookie cleared for user ID: ${userId}`);
+
+    // Trả về message từ AuthService
+    return result;
   }
 }
