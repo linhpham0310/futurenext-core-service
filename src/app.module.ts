@@ -11,6 +11,7 @@ import { SharedModule } from './shared/shared.module';
 // Import AppController nếu giữ lại health check endpoint (từ SO-INT-01)
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { MailerModule } from '@nestjs-modules/mailer';
 
 @Module({
   imports: [
@@ -93,6 +94,24 @@ import { AppService } from './app.service';
           },
         ];
       },
+    }),
+
+    MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        transport: {
+          host: config.get('SMTP_HOST'),
+          port: config.get('SMTP_PORT'),
+          auth: {
+            user: config.get('SMTP_USER'),
+            pass: config.get('SMTP_PASS'),
+          },
+        },
+        defaults: {
+          from: config.get('SMTP_FROM'),
+        },
+      }),
     }),
 
     // --- 4. Import các module nghiệp vụ & shared ---
