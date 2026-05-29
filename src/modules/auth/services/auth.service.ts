@@ -32,10 +32,14 @@ import { JwtService } from '@nestjs/jwt';
 import { AuthSession } from '../entities/auth-session.entity';
 import { LoginDto } from '../dto/login.dto';
 import ms from 'ms';
+import { PasswordResetRequest } from '../entities/password-reset-request.entity';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  passwordResetRepo: any;
+  dataSource: any;
 
   constructor(
     // Inject EntityManager để quản lý transaction
@@ -1003,5 +1007,78 @@ export class AuthService {
       // throw new InternalServerErrorException('Lỗi trong quá trình đăng xuất.');
       return { message: 'Đăng xuất thành công (có lỗi phía máy chủ).' }; // Hoặc thông báo chung
     }
+  }
+
+  async handleResetPassword(dto: ResetPasswordDto, ip: string): Promise<void> {
+    const { email, otp, newPassword, confirmNewPassword } = dto;
+
+    // THÊM: Validate confirm password
+    if (newPassword !== confirmNewPassword) {
+      throw new BadRequestException('Xác nhận mật khẩu mới không khớp.');
+    }
+
+    // 1. Tìm yêu cầu reset mới nhất chưa được sử dụng
+    const request = await this.passwordResetRepo.findOne({
+      where: {
+        email,
+        consumedAt: IsNull(), // [S2-DB-01] Chỉ lấy mã chưa dùng
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    // 2. [XÁC THỰC] Kiểm tra tồn tại và thời hạn (15 phút)
+    if (!request) {
+      throw new BadRequestException('Yêu cầu đặt lại mật khẩu không tồn tại.');
+    }
+
+    if (request.expiresAt < new Date()) {
+      throw new BadRequestException('Mã xác thực đã hết hạn.');
+    }
+
+    // 3. [BẢO MẬT] So khớp mã OTP đã hash (Sử dụng HashingService S1)
+    const isOtpValid = await this.hashingService.compare(otp, request.codeHash);
+    if (!isOtpValid) {
+      throw new BadRequestException('Mã xác thực không chính xác.');
+    }
+
+    // 4. [BẢO MẬT] Hash mật khẩu mới
+    const newHashedPassword = await this.hashingService.hash(newPassword);
+
+    // 5. [TRANSACTION] Thực thi cập nhật đa bảng
+    await this.dataSource.transaction(async (manager) => {
+      // A. Cập nhật password mới (Bảng Credentials S1)
+      await manager.update(
+        UserCredential,
+        { userId: request.userId },
+        { passwordHash: newHashedPassword, passwordUpdatedAt: new Date() },
+      );
+
+      // B. Đánh dấu mã OTP đã được tiêu thụ
+      await manager.update(
+        PasswordResetRequest,
+        { id: request.id },
+        { consumedAt: new Date() },
+      );
+
+      // C. [QUAN TRỌNG - UC03.4] Thu hồi toàn bộ phiên đăng nhập (Bảng Sessions S1)
+      // Việc này giúp "out" người dùng khỏi tất cả trình duyệt/thiết bị khác
+      await manager.update(
+        AuthSession,
+        { userId: request.userId, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+    });
+
+    // [Task: S2-BE-07] Ghi log hành động đặt lại mật khẩu THÀNH CÔNG
+    await this.auditService.log({
+      action: 'AUTH_PASSWORD_RESET_SUCCESS',
+      actorId: request.userId,
+      ip: ip,
+      details: {
+        email: email,
+        message:
+          'Mật khẩu đã được thay đổi và các phiên đăng nhập cũ bị thu hồi',
+      },
+    });
   }
 }
