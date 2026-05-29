@@ -924,4 +924,84 @@ export class AuthService {
       );
     }
   }
+
+  /**
+   * Handles the user logout process by revoking the current session's refresh token.
+   * @param refreshToken - The plain text refresh token string from the user's cookie.
+   * @param userId - The ID of the user performing the logout (obtained from the access token).
+   * @returns A success message.
+   */
+  async handleLogout(
+    refreshToken: string | undefined,
+    userId: string,
+  ): Promise<{ message: string }> {
+    this.logger.log(`Logout requested for user ID: ${userId}`);
+
+    // 1. Kiểm tra refreshToken có tồn tại không [cite: 6947-6951]
+    // Mặc dù endpoint yêu cầu login (có accessToken), cookie refreshToken có thể bị xóa thủ công
+    if (!refreshToken) {
+      this.logger.warn(
+        `Logout attempt without refresh token cookie for user ID: ${userId}. Proceeding to log audit.`,
+      );
+      // Vẫn ghi log hành động logout dù không revoke được session cụ thể
+      this.auditService.log({
+        action: 'user.logout.no_token',
+        actorId: userId,
+      });
+      // Trả về thành công vì mục đích là kết thúc phiên client-side
+      return { message: 'Đăng xuất thành công.' };
+    }
+
+    try {
+      // 2. Hash refresh token nhận được [cite: 6952]
+      const hashedToken = await this.hashingService.hash(refreshToken);
+
+      // 3. Gọi Repository/EntityManager để thu hồi session [cite: 6953-6954]
+      // Tìm session khớp hash, user VÀ chưa bị revoke, sau đó cập nhật revoked_at
+      const updateResult = await this.entityManager.update(
+        AuthSession,
+        {
+          userId: userId, // Đảm bảo đúng user
+          refreshTokenHash: hashedToken, // Khớp token hash
+          revokedAt: IsNull(), // Chỉ revoke nếu chưa bị revoke
+        },
+        {
+          revokedAt: new Date(), // Set thời điểm thu hồi
+        },
+      );
+
+      if (updateResult.affected && updateResult.affected > 0) {
+        this.logger.log(
+          `Successfully revoked session via refresh token hash for user ID: ${userId}`,
+        );
+      } else {
+        // Không tìm thấy session hợp lệ để revoke (có thể token sai, hoặc đã revoke trước đó)
+        this.logger.warn(
+          `No active session found matching the provided refresh token hash for user ID: ${userId}. Logout proceeds.`,
+        );
+        // Không cần throw lỗi ở đây, client vẫn nên xóa token của họ
+      }
+
+      // 4. Ghi log audit thành công (luôn ghi khi user gọi logout) [cite: 6958]
+      this.auditService.log({ action: 'user.logout.success', actorId: userId });
+
+      // 5. Luôn trả về thành công [cite: 6959-6961]
+      return { message: 'Đăng xuất thành công.' };
+    } catch (error) {
+      // Bắt lỗi không mong muốn (ví dụ: lỗi DB)
+      this.logger.error(
+        `Error during logout for user ID ${userId}:`,
+        error.stack,
+      );
+      this.auditService.log({
+        action: 'user.logout.failed_unexpected',
+        actorId: userId,
+        meta: { error: error.message },
+      });
+      // Vẫn trả về thành công cho client để họ có thể xóa token local, nhưng server đã log lỗi
+      // Hoặc có thể throw InternalServerErrorException nếu muốn báo lỗi rõ ràng
+      // throw new InternalServerErrorException('Lỗi trong quá trình đăng xuất.');
+      return { message: 'Đăng xuất thành công (có lỗi phía máy chủ).' }; // Hoặc thông báo chung
+    }
+  }
 }
