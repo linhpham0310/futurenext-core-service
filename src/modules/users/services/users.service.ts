@@ -18,6 +18,7 @@ import {
   AuditLogPayload,
 } from '@/shared/providers/audit/audit.service'; // Import AuditService
 import { UserRole, UserStatus } from '@/modules/users/entities/user.entity';
+import { UserQueryDto } from '../dto/user-query.dto';
 
 @Injectable()
 export class UsersService {
@@ -184,5 +185,56 @@ export class UsersService {
     });
   }
 
-  // ... (các phương thức khác cho admin: findAll, updateRole...)
+  // --- Thêm phương thức vào class UsersService ---
+  async findAll(query: UserQueryDto) {
+    const { page, limit, role, status, q } = query;
+    const skip = (page - 1) * limit;
+
+    // 1. Khởi tạo QueryBuilder với alias 'user'
+    const queryBuilder = this.userRepository.createQueryBuilder('user');
+
+    // 2. [TỐI ƯU DỮ LIỆU] Chỉ SELECT các trường cần thiết, loại bỏ password_hash
+    queryBuilder.select([
+      'user.id',
+      'user.email',
+      'user.fullName',
+      'user.role',
+      'user.status',
+      'user.createdAt',
+    ]);
+
+    // 3. [LỌC DỮ LIỆU] Thêm điều kiện WHERE động
+    if (role) {
+      queryBuilder.andWhere('user.role = :role', { role });
+    }
+    if (status) {
+      queryBuilder.andWhere('user.status = :status', { status });
+    }
+
+    // 4. [TÌM KIẾM MỜ] Sử dụng ILIKE cho email hoặc tên (PostgreSQL)
+    if (q) {
+      queryBuilder.andWhere('(user.email ILIKE :q OR user.fullName ILIKE :q)', {
+        q: `%${q}%`,
+      });
+    }
+
+    // 5. [PHÂN TRANG & SẮP XẾP]
+    queryBuilder
+      .orderBy('user.createdAt', 'DESC') // Người mới nhất lên đầu
+      .skip(skip)
+      .take(limit);
+
+    // 6. Thực thi truy vấn lấy dữ liệu và tổng số bản ghi (phục vụ FE làm Pagination)
+    const [items, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      items,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
 }
