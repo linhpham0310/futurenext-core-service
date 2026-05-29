@@ -24,6 +24,7 @@ import { EmailService } from '../notifications/services/email.service'; // đún
 import { MailerModule } from '@nestjs-modules/mailer';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuthListener } from './listeners/auth.listener';
+import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 @Module({
   imports: [
     ConfigModule, // Cần ConfigService
@@ -73,6 +74,7 @@ import { AuthListener } from './listeners/auth.listener';
     JwtRefreshStrategy,
     EmailService,
     AuthListener,
+    JwtRefreshGuard,
     // Guard thường không cần khai báo ở đây nếu chỉ dùng @UseGuards
   ],
   // Export AuthService nếu module khác cần inject trực tiếp (thường không cần)
