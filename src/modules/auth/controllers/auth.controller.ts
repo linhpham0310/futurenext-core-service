@@ -12,7 +12,7 @@ import {
   UseGuards,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from '../services/auth.service';
 import { RegisterDto } from '../dto/register.dto';
 import { Request, Response } from 'express';
@@ -24,6 +24,9 @@ import ms from 'ms';
 import { JwtRefreshGuard } from '../guards/jwt-refresh.guard';
 import { RequestWithUser } from '../interfaces/request-with-user.interface';
 import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
+import { ApiOperation } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
@@ -172,5 +175,32 @@ export class AuthController {
 
     // Trả về message từ AuthService
     return result;
+  }
+
+  // [SPRINT 2 - NEW] Endpoint Quên mật khẩu
+  @Post('forgot-password')
+  @UseGuards(ThrottlerGuard) // Chặn spam
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Yêu cầu mã đặt lại mật khẩu' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Ip() ip: string) {
+    await this.authService.handleForgotPassword(dto, ip);
+    // [SECURITY] Trả về message chung để tránh dò tìm email người dùng
+    return {
+      message:
+        'Nếu địa chỉ email của bạn có trong hệ thống, chúng tôi đã gửi mã xác thực tới đó.',
+    };
+  }
+
+  // [SPRINT 2 - NEW] Endpoint Đặt lại mật khẩu mới
+  @Post('reset-password')
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đặt lại mật khẩu mới bằng mã OTP' })
+  async resetPassword(@Body() dto: ResetPasswordDto, @Ip() ip: string) {
+    await this.authService.handleResetPassword(dto, ip);
+    return {
+      message:
+        'Mật khẩu của bạn đã được cập nhật thành công. Vui lòng đăng nhập lại.',
+    };
   }
 }
