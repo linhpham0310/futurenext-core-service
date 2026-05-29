@@ -12,6 +12,7 @@ import { UserConsent } from './entities/user-consent.entity';
 import { TeacherProfile } from './entities/teacher-profile.entity';
 // AuthModule thường được import global hoặc trong AppModule, không cần import ở đây
 // SharedModule cũng thường là global
+import { UsersAdminController } from './users-admin.controller';
 
 @Module({
   imports: [
@@ -30,8 +31,9 @@ import { TeacherProfile } from './entities/teacher-profile.entity';
   providers: [
     UsersService, // Service chứa logic nghiệp vụ
     // Thêm các Repository nếu bạn dùng Repository Pattern tường minh
-    // UserRepository,
-    // TeacherProfileRepository,
+    //UserRepository,
+    //TeacherProfileRepository,
+    UsersAdminController, // [Task: S2-BE-06] Đăng ký Admin Controller vào Module
   ],
   // Export UsersService nếu module khác cần inject (ví dụ: TeacherProfileService cần cập nhật role)
   exports: [UsersService, TypeOrmModule],
