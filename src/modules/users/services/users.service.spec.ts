@@ -154,4 +154,71 @@ describe('UsersService', () => {
       expect(mockEntityManager.update).not.toHaveBeenCalled();
     });
   });
+
+  // --- [Task: S2-BE-08] TEST CHO UPDATE ROLE & ADMIN CHECK ---
+  describe('updateRole', () => {
+    it('nên ném NotFoundException nếu user không tồn tại', async () => {
+      mockUserRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateRole(
+          'fake_id',
+          UserRole.TEACHER,
+          'admin_id',
+          '127.0.0.1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('nên kết thúc sớm nếu role mới giống role cũ (Không gọi DB save)', async () => {
+      mockUserRepository.findOne.mockResolvedValue({
+        id: 'u1',
+        role: UserRole.TEACHER,
+      });
+
+      await service.updateRole('u1', UserRole.TEACHER, 'admin_id', '127.0.0.1');
+
+      expect(mockUserRepository.save).not.toHaveBeenCalled();
+      expect(mockAuditService.log).not.toHaveBeenCalled();
+    });
+
+    it('nên ném BadRequestException nếu cố hạ quyền Admin cuối cùng', async () => {
+      // Giả lập user mục tiêu đang là Admin
+      mockUserRepository.findOne.mockResolvedValue({
+        id: 'admin1',
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+      });
+      // Giả lập DB chỉ còn 1 Admin đang active
+      mockUserRepository.count.mockResolvedValue(1);
+
+      await expect(
+        service.updateRole('admin1', UserRole.STUDENT, 'admin_id', '127.0.0.1'),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockUserRepository.count).toHaveBeenCalled();
+      expect(mockUserRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('nên cập nhật role thành công và ghi log audit', async () => {
+      // Giả lập user mục tiêu đang là Teacher
+      const targetUser = {
+        id: 'u1',
+        role: UserRole.TEACHER,
+        email: 'test@email.com',
+      };
+      mockUserRepository.findOne.mockResolvedValue(targetUser);
+
+      await service.updateRole('u1', UserRole.ADMIN, 'admin_id', '127.0.0.1');
+
+      expect(targetUser.role).toBe(UserRole.ADMIN); // Đảm bảo object đã được đổi state
+      expect(mockUserRepository.save).toHaveBeenCalledWith(targetUser);
+      expect(mockAuditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'ADMIN_UPDATED_USER_ROLE',
+          actorId: 'admin_id',
+        }),
+      );
+    });
+  });
 });
