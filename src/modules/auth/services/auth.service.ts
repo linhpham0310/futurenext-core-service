@@ -35,6 +35,8 @@ import ms from 'ms';
 import { PasswordResetRequest } from '../entities/password-reset-request.entity';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { DataSource } from 'typeorm';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { UsersService } from '@/modules/users/services/users.service';
 
 @Injectable()
 export class AuthService {
@@ -54,6 +56,7 @@ export class AuthService {
     @InjectRepository(PasswordResetRequest)
     private readonly passwordResetRepo: Repository<PasswordResetRequest>,
     private readonly dataSource: DataSource,
+    private readonly usersService: UsersService,
   ) {}
 
   /**
@@ -1009,6 +1012,69 @@ export class AuthService {
       // throw new InternalServerErrorException('Lỗi trong quá trình đăng xuất.');
       return { message: 'Đăng xuất thành công (có lỗi phía máy chủ).' }; // Hoặc thông báo chung
     }
+  }
+
+  // --- Thêm vào constructor ---
+  // @InjectRepository(PasswordResetRequest) private readonly pwResetRepo: Repository<PasswordResetRequest>,
+  // private readonly dataSource: DataSource,
+
+  async handleForgotPassword(
+    dto: ForgotPasswordDto,
+    ip: string,
+  ): Promise<void> {
+    const { email } = dto;
+
+    // 1. Kiểm tra User tồn tại qua UsersService (S1)
+    const user = await this.usersService.findOneByEmail(email);
+
+    // 2. [SECURITY] Chống dò email (Silent Failure)
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      this.logger.warn(
+        `Security alert: Forgot password attempt for email: ${email}`,
+      );
+      return; // Dừng lại nhưng Controller vẫn báo thành công
+    }
+
+    // 3. Sinh mã OTP 6 số ngẫu nhiên & Hash
+    const otp = this.generateNumericOTP(6);
+    const codeHash = await this.hashingService.hash(otp); // [Sử dụng HashingService S1]
+
+    // 4. [TRANSACTION] Vô hiệu hóa mã cũ và lưu mã mới
+    await this.dataSource.transaction(async (manager) => {
+      // Vô hiệu hóa OTP cũ của user này nếu chưa dùng
+      await manager.update(
+        PasswordResetRequest,
+        { userId: user.id, consumedAt: null },
+        { consumedAt: new Date() },
+      );
+
+      const request = manager.create(PasswordResetRequest, {
+        userId: user.id,
+        email: user.email,
+        codeHash,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // Hạn 15 phút
+      });
+      await manager.save(request);
+    });
+
+    // 5. [ASYNC EVENT] Phát event gửi mail (Module Mailer S2 sẽ xử lý)
+    this.eventEmitter.emit('auth.password_reset_requested', {
+      email: user.email,
+      fullName: user.fullName,
+      otp,
+    });
+
+    // [Task: S2-BE-07] Ghi log hành động yêu cầu quên mật khẩu
+    // Thực hiện ở cuối hàm để đảm bảo DB transaction trước đó đã thành công
+    await this.auditService.log({
+      action: 'AUTH_FORGOT_PASSWORD_REQUESTED',
+      actorId: user.id, // ID của người dùng sở hữu email
+      ip: ip, // IP lấy từ Controller truyền xuống
+      details: {
+        email: user.email,
+        message: 'Yêu cầu mã OTP đặt lại mật khẩu',
+      },
+    });
   }
 
   async handleResetPassword(dto: ResetPasswordDto, ip: string): Promise<void> {
