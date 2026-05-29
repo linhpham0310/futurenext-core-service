@@ -8,7 +8,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { InjectEntityManager } from '@nestjs/typeorm';
+import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, IsNull, MoreThan, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
@@ -34,12 +34,11 @@ import { LoginDto } from '../dto/login.dto';
 import ms from 'ms';
 import { PasswordResetRequest } from '../entities/password-reset-request.entity';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  passwordResetRepo: any;
-  dataSource: any;
 
   constructor(
     // Inject EntityManager để quản lý transaction
@@ -52,6 +51,9 @@ export class AuthService {
     private readonly jwtService: JwtService, // <<<--- INJECT JwtService
     // Inject LoginAttemptService nếu có
     // private readonly loginAttemptService: LoginAttemptService,
+    @InjectRepository(PasswordResetRequest)
+    private readonly passwordResetRepo: Repository<PasswordResetRequest>,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**

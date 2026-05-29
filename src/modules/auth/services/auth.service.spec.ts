@@ -450,4 +450,66 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
   });
+
+  // ============================================================
+  // TESTS FOR handleResetPassword() - 3 test cases
+  // ============================================================
+  describe('handleResetPassword()', () => {
+    const dto = {
+      email: 'test@example.com',
+      otp: '123456',
+      newPassword: 'NewPassword123',
+      confirmNewPassword: 'NewPassword123',
+    };
+    const ip = '127.0.0.1';
+
+    it('should throw BadRequestException if OTP not found', async () => {
+      mockPasswordResetRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.handleResetPassword(dto, ip)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if OTP is incorrect', async () => {
+      const request = {
+        id: 'req-1',
+        userId: 'user-1',
+        codeHash: 'hashed-123456',
+        expiresAt: new Date(Date.now() + 900000),
+      };
+      mockPasswordResetRepo.findOne.mockResolvedValue(request);
+      mockHashingService.compare.mockResolvedValue(false);
+
+      await expect(service.handleResetPassword(dto, ip)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should successfully reset password', async () => {
+      const request = {
+        id: 'req-1',
+        userId: 'user-1',
+        codeHash: 'hashed-123456',
+        expiresAt: new Date(Date.now() + 900000),
+      };
+      mockPasswordResetRepo.findOne.mockResolvedValue(request);
+      mockHashingService.compare.mockResolvedValue(true);
+      mockHashingService.hash.mockResolvedValue('new-hashed-password');
+      mockDataSource.transaction.mockImplementation(async (callback) =>
+        callback(mockEntityManager),
+      );
+
+      await service.handleResetPassword(dto, ip);
+
+      expect(mockDataSource.transaction).toHaveBeenCalled();
+      expect(mockAuditService.log).toHaveBeenCalled();
+    });
+    it('should throw BadRequestException if confirm password does not match', async () => {
+      const invalidDto = { ...dto, confirmNewPassword: 'DifferentPassword' };
+      await expect(service.handleResetPassword(invalidDto, ip)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
 });
