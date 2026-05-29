@@ -452,6 +452,42 @@ describe('AuthService', () => {
   });
 
   // ============================================================
+  // TESTS FOR handleForgotPassword() - 2 test cases
+  // ============================================================
+  describe('handleForgotPassword()', () => {
+    const dto = { email: 'test@example.com' };
+    const ip = '127.0.0.1';
+
+    it('should silently fail if email not found (security)', async () => {
+      mockUsersService.findOneByEmail.mockResolvedValue(null);
+
+      const result = await service.handleForgotPassword(dto, ip);
+
+      expect(result).toBeUndefined();
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('should generate OTP and emit event for existing user', async () => {
+      const user = {
+        id: 'user-1',
+        email: dto.email,
+        status: UserStatus.ACTIVE,
+      };
+      mockUsersService.findOneByEmail.mockResolvedValue(user);
+      mockHashingService.hash.mockResolvedValue('hashed-otp');
+      mockDataSource.transaction.mockImplementation(async (callback) =>
+        callback(mockEntityManager),
+      );
+
+      await service.handleForgotPassword(dto, ip);
+
+      expect(mockDataSource.transaction).toHaveBeenCalled();
+      expect(mockEventEmitter.emit).toHaveBeenCalled();
+      expect(mockAuditService.log).toHaveBeenCalled();
+    });
+  });
+
+  // ============================================================
   // TESTS FOR handleResetPassword() - 3 test cases
   // ============================================================
   describe('handleResetPassword()', () => {
