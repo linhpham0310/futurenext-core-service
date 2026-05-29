@@ -1,35 +1,48 @@
-// src/modules/users/dto/update-profile.dto.ts
-// import { IsString, IsOptional, IsUrl, IsDateString, MaxLength } from 'class-validator';
-
 /**
- * Data Transfer Object for updating the current user's profile information.
- * Defines the editable fields and includes the 'updatedAt' timestamp for optimistic locking.
- * Properties and validation decorators will be added in Sprint 1 based on UC06.2/UC06.4.
+ * @file Data Transfer Object for updating user profile information.
+ * Includes fields allowed for update and the necessary 'updatedAt' for optimistic locking.
  */
+import {
+  IsString,
+  IsOptional,
+  IsUrl,
+  MaxLength,
+  IsISO8601,
+  IsNotEmpty,
+} from 'class-validator';
+
 export class UpdateProfileDto {
   /**
-   * The user's updated full name. Optional.
+   * User's updated full name. Optional.
    * @example "Nguyen Van B"
    */
-  // @IsOptional() // Allow partial updates
-  // @IsNotEmpty({ message: 'Họ tên không được để trống.' }) // Ensure not empty if provided
-  // @IsString()
-  // @MaxLength(100)
-  // fullName?: string;
+  @IsOptional() // Cho phép không gửi lên nếu không muốn đổi
+  @IsString({ message: 'Họ tên phải là chuỗi ký tự.' })
+  @IsNotEmpty({ message: 'Họ tên không được để trống (nếu cập nhật).' }) // Không cho phép gửi chuỗi rỗng
+  @MaxLength(100, { message: 'Họ tên không được vượt quá 100 ký tự.' })
+  fullName?: string;
+
   /**
-   * The user's updated avatar URL. Optional. Must be a valid URL.
+   * User's updated avatar URL. Optional. Must be a valid URL format.
    * @example "https://example.com/new-avatar.jpg"
    */
-  // @IsOptional()
-  // @IsUrl({}, { message: 'URL ảnh đại diện không hợp lệ.' })
-  // @MaxLength(255) // Limit URL length
-  // avatarUrl?: string | null; // Allow setting to null
+  @IsOptional()
+  @IsUrl({}, { message: 'URL ảnh đại diện không hợp lệ.' })
+  @MaxLength(1024, {
+    message: 'URL ảnh đại diện không được vượt quá 1024 ký tự.',
+  })
+  avatarUrl?: string | null; // Cho phép gửi null để xóa avatar
+
   /**
-   * The timestamp (ISO 8601 string) of the user record when the client last fetched it.
-   * Required for Optimistic Locking mechanism .
-   * @example "2025-10-26T10:30:00.000Z"
+   * The 'updatedAt' timestamp of the user record when the client last fetched it.
+   * REQUIRED for Optimistic Locking (UC06.4). Must be a valid ISO 8601 date string.
+   * Client MUST send this value, obtained from the initial GET /me/profile request.
+   * @example "2025-10-26T10:30:15.123Z"
    */
-  // @IsDateString({}, { message: 'updatedAt phải là định dạng ngày giờ ISO 8601 hợp lệ.' })
-  // @IsNotEmpty({ message: 'updatedAt là bắt buộc để tránh ghi đè dữ liệu.'})
-  // updatedAt: string;
+  @IsNotEmpty({ message: 'Timestamp updatedAt là bắt buộc để cập nhật.' })
+  @IsISO8601(
+    {},
+    { message: 'Timestamp updatedAt phải là định dạng ISO 8601 hợp lệ.' },
+  ) // Validate date string format
+  updatedAt: string; // Nhận dạng string từ client
 }
