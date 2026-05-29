@@ -292,7 +292,6 @@ export class UsersService {
     await this.userRepository.save(targetUser);
 
     // 4. [GHI LOG AUDIT] Lưu vết hành động nhạy cảm này
-    // [Task: S2-BE-07] Ghi log hành động phân quyền
     // Cực kỳ quan trọng để quy trách nhiệm (Accountability) cho Admin
     await this.auditService.log({
       action: 'ADMIN_UPDATED_USER_ROLE',
