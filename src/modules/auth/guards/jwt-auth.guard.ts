@@ -20,7 +20,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   // }
 
   // Optional: Override handleRequest for custom error handling after strategy runs
-  handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
+  handleRequest(err: any, user: any, _info: any, context: ExecutionContext) {
     // user will be false if the token is invalid (expired, wrong signature, or validate() failed)
     if (err || !user) {
       // You can throw an exception based on either `info` or `err` arguments
