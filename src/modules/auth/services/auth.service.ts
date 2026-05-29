@@ -51,6 +51,63 @@ export class AuthService {
   ) {}
 
   /**
+   * Finds an active (not revoked, not expired) AuthSession by its hashed refresh token,
+   * marks it as revoked, and returns the original session record.
+   * Executes within a transaction to ensure atomicity.
+   * @param hashedToken - The hashed refresh token to search for.
+   * @param userId - The user ID associated with the token (for extra security check).
+   * @returns The revoked AuthSession record if found and updated, otherwise null.
+   */
+  private async findAndRevokeSession(
+    hashedToken: string,
+    userId: string,
+  ): Promise<AuthSession | null> {
+    let revokedSession: AuthSession | null = null;
+    const now = new Date();
+    this.logger.verbose(
+      `Attempting to find and revoke session for user ${userId} with token hash`,
+    );
+
+    try {
+      await this.entityManager.transaction(async (txManager) => {
+        // Find the specific session matching the hash, user, not revoked, and not expired
+        const session = await txManager.findOne(AuthSession, {
+          where: {
+            refreshTokenHash: hashedToken,
+            userId: userId, // Ensure the token belongs to the requesting user
+            revokedAt: IsNull(), // Ensure it hasn't been revoked already
+            expiresAt: MoreThan(now), // Ensure it hasn't expired
+          },
+        });
+
+        if (session) {
+          // If found, mark it as revoked by setting the revokedAt timestamp
+          session.revokedAt = now;
+          await txManager.save(AuthSession, session); // Save the change within the transaction
+          revokedSession = session; // Store the found session to return it
+          this.logger.log(`Session ${session.id} revoked for user ${userId}`);
+        } else {
+          this.logger.warn(
+            `No active, unrevoked session found for user ${userId} with the provided token hash.`,
+          );
+        }
+      });
+    } catch (error) {
+      this.logger.error(
+        `Transaction failed during findAndRevokeSession for user ${userId}:`,
+        error.stack,
+      );
+      // Do not throw Unauthorized here, let the main refreshTokens logic handle null return
+      // Throw InternalServerError only for unexpected DB errors
+      throw new InternalServerErrorException(
+        'Lỗi cơ sở dữ liệu khi xử lý phiên làm việc.',
+      );
+    }
+
+    return revokedSession; // Return the session that was just revoked, or null if none was found/revoked
+  }
+
+  /**
    * Handles the user registration process.
    * @param dto - Validated registration data.
    * @param ip - IP address of the request origin.
@@ -700,6 +757,170 @@ export class AuthService {
       });
       throw new InternalServerErrorException(
         'Đã xảy ra lỗi trong quá trình đăng nhập.',
+      );
+    }
+  }
+
+  /**
+   * Refreshes the access token using a valid refresh token.
+   * Implements Refresh Token Rotation and Replay Attack Detection.
+   * @param userId - The user ID extracted from the refresh token payload.
+   * @param oldRefreshToken - The original (plain text) refresh token string from the cookie.
+   * @returns An object containing the new access token and new refresh token.
+   * @throws UnauthorizedException if the refresh token is invalid, expired, revoked, or reused.
+   * @throws InternalServerErrorException on unexpected errors.
+   */
+  async refreshTokens(
+    userId: string,
+    oldRefreshToken: string,
+  ): Promise<{ newAccessToken: string; newRefreshToken: string }> {
+    this.logger.log(`Attempting token refresh for user ID: ${userId}`);
+
+    // 1. Hash the received old refresh token to compare with DB [cite: 3014-3015]
+    const hashedOldToken = await this.hashingService.hash(oldRefreshToken);
+
+    // 2. Find the corresponding session and mark it as revoked (atomic operation) [cite: 3016-3018]
+    const revokedSession = await this.findAndRevokeSession(
+      hashedOldToken,
+      userId,
+    );
+
+    // 3. --- SECURITY: Replay Attack Detection ---
+    // If findAndRevokeSession returned null, it means the token provided was:
+    //    a) Invalid (never existed or wrong hash)
+    //    b) Expired (expiresAt was in the past)
+    //    c) Already Revoked (revokedAt was not NULL - THIS IS THE REUSE CASE)
+    if (!revokedSession) {
+      this.logger.warn(
+        `Refresh token reuse or invalid token detected for user ID: ${userId}. Revoking all sessions.`,
+      );
+      // As a security measure, revoke ALL other valid sessions for this user.
+      await this.revokeAllUserSessions(userId); // [cite: 3021-3022]
+      // Log the critical security event
+      this.auditService.log({
+        action: 'token.refresh.reuse_or_invalid',
+        actorId: userId,
+      });
+      // Throw Unauthorized to force re-login
+      throw new UnauthorizedException(
+        'Phiên làm việc không hợp lệ hoặc đã hết hạn.',
+      ); //
+    }
+
+    // --- SUCCESSFUL ROTATION: oldRefreshToken was valid and is now revoked ---
+
+    // 4. Get User Info (needed for new token payload, especially the current role) [cite: 3025-3026]
+    // Use EntityManager or UserRepository here
+    const user = await this.entityManager.findOne(User, {
+      where: { id: userId, status: UserStatus.ACTIVE }, // Ensure user is still active
+      select: ['id', 'role', 'fullName'], // Select only necessary fields
+    });
+    if (!user) {
+      // Edge case: User might have been deactivated/deleted since the token was issued
+      this.logger.error(
+        `User ${userId} not found or inactive during token refresh.`,
+      );
+      this.auditService.log({
+        action: 'token.refresh.failed_user_not_found',
+        actorId: userId,
+      });
+      // Revoke all other sessions just in case
+      await this.revokeAllUserSessions(userId);
+      throw new UnauthorizedException('Người dùng không hợp lệ.');
+    }
+
+    // 5. Generate NEW Access Token and NEW Refresh Token
+    const newAccessTokenPayload = { sub: user.id, role: user.role }; // Use current role from DB
+    const newRefreshTokenPayload = { sub: user.id };
+
+    const newAccessToken = await this.jwtService.signAsync(
+      newAccessTokenPayload,
+      {
+        secret: this.configService.getOrThrow<string>('JWT_SECRET'),
+        expiresIn: this.configService.get<string>(
+          'JWT_EXPIRES_IN',
+          '15m',
+        ) as any, // Dùng getOrThrow để đảm bảo secret tồn tại
+      },
+    );
+
+    const newRefreshToken = await this.jwtService.signAsync(
+      newRefreshTokenPayload,
+      {
+        secret: this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET'),
+        expiresIn: this.configService.get<string>(
+          'REFRESH_TOKEN_EXPIRES_IN',
+          '7d',
+        ) as any,
+      },
+    );
+
+    // 6. Hash the NEW Refresh Token [cite: 3029]
+    const newRefreshTokenHash = await this.hashingService.hash(newRefreshToken);
+
+    // 7. Create and save the NEW AuthSession record [cite: 3030-3035]
+    const newRefreshTokenExpiresIn = this.configService.getOrThrow<string>(
+      'REFRESH_TOKEN_EXPIRES_IN',
+    );
+    const newExpiresAt = new Date(
+      Date.now() + ms(newRefreshTokenExpiresIn as ms.StringValue),
+    );
+
+    const newSession = this.entityManager.create(AuthSession, {
+      userId: user.id,
+      refreshTokenHash: newRefreshTokenHash,
+      // Use the role recorded AT THE TIME OF ORIGINAL LOGIN from the revoked session
+      // This prevents unexpected privilege escalation if the user's role was changed
+      // after the session started, but before refresh.
+      roleAtLogin: revokedSession.roleAtLogin,
+      ip: revokedSession.ip, // Optionally update IP/UA from current request, or keep original
+      userAgent: revokedSession.userAgent,
+      expiresAt: newExpiresAt,
+    });
+    await this.entityManager.save(AuthSession, newSession);
+    this.logger.log(
+      `New AuthSession ${newSession.id} created for user ${user.id} during refresh.`,
+    );
+
+    // 8. Log successful refresh audit event
+    this.auditService.log({
+      action: 'token.refresh.success',
+      actorId: user.id,
+      meta: { oldSessionId: revokedSession.id, newSessionId: newSession.id },
+    });
+
+    // 9. Return the new tokens to the Controller [cite: 3038]
+    return { newAccessToken, newRefreshToken };
+  }
+
+  /**
+   * Revokes all active sessions for a specific user.
+   * Used as a security measure when token reuse is detected.
+   * @param userId - The ID of the user whose sessions should be revoked.
+   */
+  async revokeAllUserSessions(userId: string): Promise<void> {
+    this.logger.warn(`Revoking all active sessions for user ID: ${userId}`);
+    try {
+      const result = await this.entityManager.update(
+        AuthSession,
+        {
+          userId: userId,
+          revokedAt: IsNull(),
+        },
+        {
+          revokedAt: new Date(),
+        },
+      );
+      this.logger.log(
+        `Revoked ${result.affected} active sessions for user ID: ${userId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to revoke sessions for user ${userId}:`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Đã xảy ra lỗi khi thu hồi phiên làm việc.',
       );
     }
   }

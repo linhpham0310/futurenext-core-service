@@ -9,6 +9,8 @@ import {
   BadRequestException,
   Res,
   Logger,
+  UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../services/auth.service';
@@ -19,6 +21,8 @@ import { LoginDto } from '../dto/login.dto';
 import { ConfigService } from '@nestjs/config';
 import { UserRole } from '@/modules/users/entities/user.entity';
 import ms from 'ms';
+import { JwtRefreshGuard } from '../guards/jwt-refresh.guard';
+import { RequestWithUser } from '../interfaces/request-with-user.interface';
 
 @Controller('auth')
 export class AuthController {
@@ -88,5 +92,49 @@ export class AuthController {
       accessToken: result.accessToken,
       user: result.user,
     };
+  }
+
+  @UseGuards(JwtRefreshGuard) // Apply the guard to protect this route [cite: 3040]
+  @HttpCode(HttpStatus.OK)
+  @Post('refresh') // Endpoint: POST /auth/refresh
+  async refreshTokens(
+    // Use the custom interface for type safety
+    @Req() req: RequestWithUser,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ accessToken: string }> {
+    // The JwtRefreshGuard already validated the token and attached the payload + raw token to req.user
+    const userId = req.user.userId; // Get userId from the attached user object
+    const oldRefreshToken = req.user.refreshToken; // Get the original token string
+    this.logger.log(`Received token refresh request for user ID: ${userId}`);
+
+    if (!oldRefreshToken) {
+      this.logger.warn(`Refresh token missing for user ID: ${userId}`);
+      throw new UnauthorizedException('Refresh token không tồn tại.');
+    }
+    // Call AuthService to perform rotation and get new tokens
+    const { newAccessToken, newRefreshToken } =
+      await this.authService.refreshTokens(userId, oldRefreshToken);
+
+    // --- Set NEW Refresh Token in HttpOnly Cookie --- (Logic similar to login)
+    const refreshTokenExpiresIn = this.configService.getOrThrow<string>(
+      'REFRESH_TOKEN_EXPIRES_IN',
+    );
+    const maxAgeMs: number = ms(refreshTokenExpiresIn as ms.StringValue);
+
+    res.cookie(
+      'refreshToken', // Cookie name must match extractor in strategy
+      newRefreshToken, // The NEW refresh token value
+      {
+        httpOnly: true,
+        secure: this.configService.get<string>('NODE_ENV') !== 'development',
+        sameSite: 'strict',
+        path: '/auth/refresh', // Path must match extractor
+        maxAge: maxAgeMs,
+      },
+    );
+    this.logger.log(`New refresh token cookie set for user ${userId}`);
+
+    // Return ONLY the new Access Token in the response body [cite: 3050]
+    return { accessToken: newAccessToken };
   }
 }
