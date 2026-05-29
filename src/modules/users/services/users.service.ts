@@ -237,4 +237,74 @@ export class UsersService {
       },
     };
   }
+
+  // --- [Task: S2-BE-05] PHẦN CODE THÊM MỚI ---
+  /**
+   * Cập nhật vai trò của người dùng với logic bảo vệ Admin cuối cùng
+   * @param targetUserId ID của người dùng bị đổi quyền
+   * @param newRole Vai trò mới
+   * @param actionById ID của Admin đang thực hiện thao tác (để ghi log)
+   * @param ip IP của Admin thực hiện (để ghi log)
+   */
+  async updateRole(
+    targetUserId: string,
+    newRole: UserRole,
+    actionById: string,
+    ip: string,
+  ): Promise<void> {
+    // 1. Kiểm tra user cần cập nhật có tồn tại không
+    const targetUser = await this.userRepository.findOne({
+      where: { id: targetUserId },
+    });
+    if (!targetUser) {
+      throw new NotFoundException(
+        'Không tìm thấy người dùng này trong hệ thống.',
+      );
+    }
+
+    // Nếu role không thay đổi thì bỏ qua để tối ưu hiệu năng
+    if (targetUser.role === newRole) {
+      return;
+    }
+
+    // 2. [LOGIC BẢO MẬT CORE] Kiểm tra "Admin cuối cùng"
+    // Nếu user hiện tại đang là ADMIN và bị hạ quyền xuống vai trò khác
+    if (targetUser.role === UserRole.ADMIN && newRole !== UserRole.ADMIN) {
+      // Đếm tổng số Admin đang Active trong toàn hệ thống
+      const activeAdminsCount = await this.userRepository.count({
+        where: {
+          role: UserRole.ADMIN,
+          status: UserStatus.ACTIVE,
+        },
+      });
+
+      // Nếu chỉ còn <= 1 Admin, ném lỗi từ chối thao tác
+      if (activeAdminsCount <= 1) {
+        throw new BadRequestException(
+          'Không thể hạ quyền Admin này vì đây là Quản trị viên đang hoạt động duy nhất còn lại của hệ thống.',
+        );
+      }
+    }
+
+    // 3. Thực hiện cập nhật quyền
+    const oldRole = targetUser.role;
+    targetUser.role = newRole;
+    await this.userRepository.save(targetUser);
+
+    // 4. [GHI LOG AUDIT] Lưu vết hành động nhạy cảm này
+    // [Task: S2-BE-07] Ghi log hành động phân quyền
+    // Cực kỳ quan trọng để quy trách nhiệm (Accountability) cho Admin
+    await this.auditService.log({
+      action: 'ADMIN_UPDATED_USER_ROLE',
+      actorId: actionById, // [QUAN TRỌNG] ID của Admin thực hiện thao tác (Không phải ID người bị đổi)
+      ip: ip,
+      details: {
+        targetUserId: targetUser.id,
+        targetUserEmail: targetUser.email,
+        oldRole: oldRole,
+        newRole: newRole,
+        message: `Admin đã thay đổi quyền từ ${oldRole} sang ${newRole}`,
+      },
+    });
+  }
 }
