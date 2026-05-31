@@ -15,6 +15,7 @@ import { User, UserRole } from '../entities/user.entity';
 import { RolesGuard } from '@/shared/guards/roles.guard'; // Import cho ví dụ
 import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
 import { CurrentUser } from '@/shared/decorators/current-user.decorator';
+import { Roles } from '@/shared/decorators/roles.decorator';
 
 @Controller('users') // Thay đổi base path thành 'users' cho rõ ràng hơn
 @UseGuards(JwtAuthGuard) // <<<--- ÁP DỤNG JWT GUARD CHO TOÀN BỘ CONTROLLER
@@ -43,11 +44,11 @@ export class UsersController {
   }
 
   // --- VÍ DỤ CHO SPRINT 2 ---
-  // @Get('admin/test') // GET /users/admin/test
-  // @UseGuards(RolesGuard) // Áp dụng RolesGuard sau JwtAuthGuard
-  // @Roles(UserRole.ADMIN) // Chỉ định chỉ ADMIN được truy cập
-  // adminOnlyEndpoint(@CurrentUser() user: any) {
-  //     this.logger.log(`Admin endpoint accessed by user: ${user.sub}`);
-  //     return { message: `Welcome Admin ${user.sub}!`};
-  // }
+  @Get('admin/test') // GET /users/admin/test
+  @UseGuards(RolesGuard) // Áp dụng RolesGuard sau JwtAuthGuard
+  @Roles(UserRole.ADMIN) // Chỉ định chỉ ADMIN được truy cập
+  adminOnlyEndpoint(@CurrentUser() user: any) {
+    this.logger.log(`Admin endpoint accessed by user: ${user.sub}`);
+    return { message: `Welcome Admin ${user.sub}!` };
+  }
 }
