@@ -15,6 +15,7 @@ import { TeacherProfile } from './entities/teacher-profile.entity';
 import { UsersAdminController } from './users-admin.controller';
 import { TeacherProfilesController } from './controllers/teacher-profiles.controller';
 import { TeacherProfilesService } from './services/teacher-profiles.service';
+import { AdminTeacherProfilesController } from './controllers/admin-teacher-profiles.controller';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { TeacherProfilesService } from './services/teacher-profiles.service';
     UsersController,
     // UsersAdminController,
     TeacherProfilesController,
+    AdminTeacherProfilesController,
   ],
   providers: [
     UsersService,
