@@ -31,7 +31,6 @@ export class AdminTeacherProfilesController {
     private readonly teacherProfilesService: TeacherProfilesService,
   ) {}
 
-  // [Task: S3-BE-02] API: GET /api/admin/teacher-profiles
   @Get()
   async getProfiles(@Query() filterDto: GetTeacherProfilesFilterDto) {
     const result = await this.teacherProfilesService.findAllForAdmin(filterDto);
@@ -42,15 +41,12 @@ export class AdminTeacherProfilesController {
     };
   }
 
-  // [Task: S3-BE-02] API: PATCH /api/admin/teacher-profiles/:id/review
   @Patch(':id/review')
   async reviewProfile(
-    // [Task: S3-BE-03] Lấy object Request để bóc tách thông tin admin từ token
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string, // Đảm bảo ID truyền vào là chuẩn UUID
     @Body() reviewDto: ReviewTeacherProfileDto,
   ) {
-    // [Task: S3-BE-03] Lấy ID của Admin đang thực hiện request
     const adminId = req.user.id;
 
     const profile = await this.teacherProfilesService.reviewProfile(
