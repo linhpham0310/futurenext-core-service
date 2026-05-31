@@ -89,16 +89,12 @@ export class User {
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
-  // --- Relations ---
-  // cascade: true tự động lưu/xóa credential khi lưu/xóa user
-  // eager: false không tự động load credential khi load user (tốt cho hiệu năng)
   @OneToOne(() => UserCredential, (credential) => credential.user, {
     cascade: true,
     eager: false,
   })
   credential?: UserCredential;
 
-  // lazy: true chỉ load sessions khi truy cập thuộc tính này
   @OneToMany(() => AuthSession, (session) => session.user, { lazy: true })
   sessions?: Promise<AuthSession[]>; // Dùng Promise cho lazy loading
 

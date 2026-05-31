@@ -71,12 +71,10 @@ export class TeacherProfile {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
-  // onDelete: 'CASCADE' xóa profile khi user bị xóa
   @OneToOne(() => User, (user) => user.teacherProfile, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  // onDelete: 'SET NULL' giữ lại profile dù admin reviewer bị xóa
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'reviewed_by_user_id' })
   reviewedBy?: User;

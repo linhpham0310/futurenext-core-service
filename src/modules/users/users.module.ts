@@ -16,26 +16,23 @@ import { UsersAdminController } from './users-admin.controller';
 
 @Module({
   imports: [
-    // Đăng ký các entity thuộc Users module với TypeORM
     TypeOrmModule.forFeature([
       User,
-      UserCredential, // Mặc dù không trực tiếp dùng, nhưng là relation của User
+      UserCredential,
       UserConsent,
       TeacherProfile,
     ]),
   ],
   controllers: [
-    UsersController, // Controller cho người dùng tự quản lý
-    // UsersAdminController, // Controller cho Admin (sẽ tạo sau)
+    UsersController,
+    // UsersAdminController,
   ],
   providers: [
-    UsersService, // Service chứa logic nghiệp vụ
-    // Thêm các Repository nếu bạn dùng Repository Pattern tường minh
+    UsersService,
     //UserRepository,
     //TeacherProfileRepository,
-    UsersAdminController, // [Task: S2-BE-06] Đăng ký Admin Controller vào Module
+    UsersAdminController,
   ],
-  // Export UsersService nếu module khác cần inject (ví dụ: TeacherProfileService cần cập nhật role)
   exports: [UsersService, TypeOrmModule],
 })
 export class UsersModule {}
