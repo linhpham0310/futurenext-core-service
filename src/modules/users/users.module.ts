@@ -13,6 +13,8 @@ import { TeacherProfile } from './entities/teacher-profile.entity';
 // AuthModule thường được import global hoặc trong AppModule, không cần import ở đây
 // SharedModule cũng thường là global
 import { UsersAdminController } from './users-admin.controller';
+import { TeacherProfilesController } from './controllers/teacher-profiles.controller';
+import { TeacherProfilesService } from './services/teacher-profiles.service';
 
 @Module({
   imports: [
@@ -26,13 +28,15 @@ import { UsersAdminController } from './users-admin.controller';
   controllers: [
     UsersController,
     // UsersAdminController,
+    TeacherProfilesController,
   ],
   providers: [
     UsersService,
     //UserRepository,
     //TeacherProfileRepository,
     UsersAdminController,
+    TeacherProfilesService,
   ],
-  exports: [UsersService, TypeOrmModule],
+  exports: [UsersService, TypeOrmModule, TeacherProfilesService],
 })
 export class UsersModule {}
