@@ -38,36 +38,55 @@ export class TeacherProfilesService {
   ) {}
 
   // [Task: S3-BE-01] Logic nộp hồ sơ mới
+  // src/modules/users/services/teacher-profiles.service.ts
+
   async submitProfile(
     userId: string,
     dto: SubmitTeacherProfileDto,
   ): Promise<TeacherProfile> {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('Không tìm thấy người dùng hợp lệ.');
-    }
+    console.log('=== submitProfile called ===');
+    console.log('userId:', userId);
+    console.log('dto:', dto);
 
-    // Kiểm tra xem user này đã nộp hồ sơ chưa (tránh spam)
-    const existingProfile = await this.teacherProfileRepo.findOne({
-      where: { userId: userId },
-    });
-    if (existingProfile) {
-      throw new ConflictException(
-        'Hồ sơ giáo viên của bạn đã tồn tại. Vui lòng sử dụng chức năng cập nhật.',
+    // 1. Kiểm tra user tồn tại
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException(
+        `Không tìm thấy người dùng với ID: ${userId}`,
       );
     }
 
+    // 2. Kiểm tra profile đã tồn tại
+    const existingProfile = await this.teacherProfileRepo.findOne({
+      where: { userId: userId },
+    });
+
+    if (existingProfile) {
+      throw new ConflictException('Hồ sơ giáo viên của bạn đã tồn tại.');
+    }
+
+    // 3. Xử lý expertise an toàn
     const safeExpertise =
       dto.expertise && Array.isArray(dto.expertise) ? dto.expertise : [];
 
-    // Khởi tạo profile (Status mặc định là PENDING từ DB)
+    // 4. Tạo profile
+   
     const newProfile = this.teacherProfileRepo.create({
       userId: userId,
       bio: dto.bio,
       expertise: safeExpertise,
+      status: TeacherProfileStatus.PENDING_REVIEW,
+
     });
 
-    return await this.teacherProfileRepo.save(newProfile);
+    console.log('profile to save:', newProfile);
+
+    // 5. Lưu
+    const saved = await this.teacherProfileRepo.save(newProfile);
+    console.log('saved profile:', saved);
+
+    return saved;
   }
 
   // [Task: S3-BE-01] Logic cập nhật hồ sơ

@@ -22,7 +22,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 // import { RolesGuard } from '../../auth/guards/roles.guard';
 // import { Roles } from '../../auth/decorators/roles.decorator';
 
-@Controller('api/admin/teacher-profiles')
+@Controller('admin/teacher-profiles')
 @UseGuards(JwtAuthGuard) // [Task: S3-BE-02] Bắt buộc đăng nhập
 // @UseGuards(RolesGuard)
 // @Roles('ADMIN')
