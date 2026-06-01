@@ -71,13 +71,12 @@ export class TeacherProfilesService {
       dto.expertise && Array.isArray(dto.expertise) ? dto.expertise : [];
 
     // 4. Tạo profile
-   
+
     const newProfile = this.teacherProfileRepo.create({
       userId: userId,
       bio: dto.bio,
       expertise: safeExpertise,
       status: TeacherProfileStatus.PENDING_REVIEW,
-
     });
 
     console.log('profile to save:', newProfile);
