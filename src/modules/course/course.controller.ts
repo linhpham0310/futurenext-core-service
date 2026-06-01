@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Giả định b
 import { CourseOwnershipGuard } from './guards/course-ownership.guard';
 import { CreateSectionDto } from './dto/create-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
+import { CreateLessonDto } from './dto/create-lesson.dto';
 
 @Controller('courses')
 export class CourseController {
@@ -56,5 +57,15 @@ export class CourseController {
     @Body() dto: ReorderSectionsDto,
   ) {
     return this.courseService.reorderSections(courseId, dto);
+  }
+  // TASK S3-CM-01: API thêm bài học vào một chương mục
+  // URL: POST /api/v1/courses/:id/sections/:sectionId/lessons
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Post(':id/sections/:sectionId/lessons')
+  async addLesson(
+    @Param('sectionId') sectionId: string,
+    @Body() dto: CreateLessonDto,
+  ) {
+    return this.courseService.addLesson(sectionId, dto);
   }
 }
