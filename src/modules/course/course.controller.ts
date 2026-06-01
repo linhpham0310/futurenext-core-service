@@ -6,6 +6,8 @@ import {
   Request,
   Patch,
   Param,
+  Get,
+  Query,
 } from '@nestjs/common';
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -67,5 +69,21 @@ export class CourseController {
     @Body() dto: CreateLessonDto,
   ) {
     return this.courseService.addLesson(sectionId, dto);
+  }
+
+  // TASK S3-CM-02: API lấy URL Upload Media
+  // URL: GET /api/v1/courses/:id/upload-url?fileName=video.mp4&fileType=video/mp4
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // Rất quan trọng: Check quyền sở hữu khóa học
+  @Get(':id/upload-url')
+  async getUploadUrl(
+    @Param('id') courseId: string,
+    @Query('fileName') fileName: string,
+    @Query('fileType') fileType: string,
+  ) {
+    return this.courseService.getUploadPresignedUrl(
+      courseId,
+      fileName,
+      fileType,
+    );
   }
 }
