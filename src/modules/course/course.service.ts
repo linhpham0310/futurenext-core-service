@@ -29,4 +29,11 @@ export class CourseService {
       },
     });
   }
+
+  async update(id: string, data: any) {
+    return this.prisma.course.update({
+      where: { id },
+      data: data,
+    });
+  }
 }
