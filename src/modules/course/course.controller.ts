@@ -11,6 +11,7 @@ import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Giả định bạn đã có Guard này
 import { CourseOwnershipGuard } from './guards/course-ownership.guard';
+import { CreateSectionDto } from './dto/create-section.dto';
 
 @Controller('courses')
 export class CourseController {
@@ -32,5 +33,16 @@ export class CourseController {
   ) {
     // Nếu code chạy đến đây, nghĩa là Guard đã xác nhận ID này thuộc về User đang login
     return this.courseService.update(id, updateData);
+  }
+
+  // TASK S2-CM-01: API thêm chương mục vào khóa học
+  // URL: POST /api/v1/courses/:id/sections
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // Bảo vệ chống IDOR từ Task 1.4
+  @Post(':id/sections')
+  async addSection(
+    @Param('id') courseId: string,
+    @Body() dto: CreateSectionDto,
+  ) {
+    return this.courseService.addSection(courseId, dto);
   }
 }
