@@ -1,22 +1,31 @@
+// src/modules/course/course.service.ts
 import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import slugify from 'slugify';
 import { nanoid } from 'nanoid';
-import { PrismaService } from 'prisma/prisma.service';
+
 @Injectable()
 export class CourseService {
   constructor(private prisma: PrismaService) {}
+
   async createDraft(instructorId: string, dto: CreateCourseDto) {
-    // 1. Tạo slug tự động (Task S1-CM-03)
-    const baseSlug = slugify(dto.title, { lower: true, strict: true });
+    const baseSlug = slugify(dto.title, {
+      lower: true,
+      strict: true,
+      locale: 'vi',
+    });
     const uniqueSlug = `${baseSlug}-${nanoid(6)}`;
-    // 2. Lưu vào DB với trạng thái DRAFT
+
     return this.prisma.course.create({
       data: {
-        ...dto,
+        title: dto.title,
         slug: uniqueSlug,
+        description: dto.description,
+        price: dto.price || 0,
+        thumbnailUrl: dto.thumbnailUrl,
         instructorId: instructorId,
-        status: 'DRAFT', // Ép buộc trạng thái nháp
+        status: 'DRAFT',
       },
     });
   }
