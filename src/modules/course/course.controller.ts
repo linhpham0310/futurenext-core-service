@@ -12,7 +12,7 @@ import { CreateCourseDto } from './dto/create-course.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Giả định bạn đã có Guard này
 import { CourseOwnershipGuard } from './guards/course-ownership.guard';
 import { CreateSectionDto } from './dto/create-section.dto';
-
+import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 
 @Controller('courses')
 export class CourseController {
@@ -47,4 +47,14 @@ export class CourseController {
     return this.courseService.addSection(courseId, dto);
   }
 
+  // TASK S2-CM-02: API sắp xếp lại thứ tự các chương mục
+  // URL: PATCH /api/v1/courses/:id/sections/reorder
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // Tái sử dụng Guard bảo mật từ Sprint 1
+  @Patch(':id/sections/reorder')
+  async reorderSections(
+    @Param('id') courseId: string,
+    @Body() dto: ReorderSectionsDto,
+  ) {
+    return this.courseService.reorderSections(courseId, dto);
+  }
 }

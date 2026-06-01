@@ -5,6 +5,7 @@ import { CreateCourseDto } from './dto/create-course.dto';
 import slugify from 'slugify';
 import { nanoid } from 'nanoid';
 import { CreateSectionDto } from './dto/create-section.dto';
+import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 
 @Injectable()
 export class CourseService {
@@ -58,4 +59,19 @@ export class CourseService {
     });
   }
 
+  // TASK S2-CM-02: CẬP NHẬT THỨ TỰ CHƯƠNG MỤC HÀNG LOẠT
+  async reorderSections(courseId: string, dto: ReorderSectionsDto) {
+    // Sử dụng Transaction để đảm bảo tính an toàn dữ liệu
+    return await this.prisma.$transaction(
+      dto.orders.map((item) =>
+        this.prisma.section.update({
+          where: {
+            id: item.id,
+            courseId: courseId, // Bảo mật thêm 1 lớp: phải đúng khóa học
+          },
+          data: { orderIndex: item.orderIndex },
+        }),
+      ),
+    );
+  }
 }
