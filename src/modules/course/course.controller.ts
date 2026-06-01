@@ -16,6 +16,7 @@ import { CourseOwnershipGuard } from './guards/course-ownership.guard';
 import { CreateSectionDto } from './dto/create-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
+import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
 
 @Controller('courses')
 export class CourseController {
@@ -85,5 +86,18 @@ export class CourseController {
       fileName,
       fileType,
     );
+  }
+
+  /**
+   * TASK S3-CM-03: API CẬP NHẬT NỘI DUNG BÀI HỌC
+   * URL: PATCH /api/v1/courses/:id/lessons/:lessonId
+   */
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Patch(':id/lessons/:lessonId')
+  async updateLessonContent(
+    @Param('lessonId') lessonId: string,
+    @Body() dto: UpdateLessonContentDto,
+  ) {
+    return this.courseService.updateLessonContent(lessonId, dto);
   }
 }

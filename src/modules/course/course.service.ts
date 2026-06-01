@@ -9,6 +9,7 @@ import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { S3Service } from '../common/s3.service';
+import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
 
 @Injectable()
 export class CourseService {
@@ -127,5 +128,26 @@ export class CourseService {
       uploadUrl,
       fileKey, // Trả về key để Frontend sau đó gửi lại Backend lưu vào DB
     };
+  }
+  /**
+   * TASK S3-CM-03: CẬP NHẬT NỘI DUNG CHI TIẾT BÀI HỌC (SPRINT 3)
+   * Hỗ trợ cả lưu URL Video (từ S3) và nội dung Markdown
+   */
+  async updateLessonContent(lessonId: string, dto: UpdateLessonContentDto) {
+    // 1. Kiểm tra bài học có tồn tại không
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+    if (!lesson) {
+      throw new NotFoundException('Không tìm thấy bài học để cập nhật');
+    }
+    // 2. Cập nhật dữ liệu vào DB
+    return this.prisma.lesson.update({
+      where: { id: lessonId },
+      data: {
+        content: dto.content,
+        duration: dto.duration ?? lesson.duration, // Giữ nguyên duration cũ nếu không gửi mới
+      },
+    });
   }
 }
