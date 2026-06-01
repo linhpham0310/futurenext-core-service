@@ -1,11 +1,12 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
+  previewFeatures = ["multiSchema",  "postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
   schemas  = ["course_mgmt", "lx"]
+  extensions = [uuid_ossp, vector] 
 }
 
 enum CourseStatus {
