@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service'; // Đường dẫn tùy dự án của bạn
 import { CreateCourseDto } from './dto/create-course.dto';
 import slugify from 'slugify';
 import { nanoid } from 'nanoid';
+import { PrismaService } from 'prisma/prisma.service';
 @Injectable()
 export class CourseService {
   constructor(private prisma: PrismaService) {}
