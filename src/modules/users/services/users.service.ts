@@ -252,7 +252,6 @@ export class UsersService {
     actionById: string,
     ip: string,
   ): Promise<void> {
-    // 1. Kiểm tra user cần cập nhật có tồn tại không
     const targetUser = await this.userRepository.findOne({
       where: { id: targetUserId },
     });
@@ -264,7 +263,9 @@ export class UsersService {
 
     // Nếu role không thay đổi thì bỏ qua để tối ưu hiệu năng
     if (targetUser.role === newRole) {
-      return;
+      throw new BadRequestException(
+        `Người dùng này đã có quyền ${newRole} từ trước.`,
+      );
     }
 
     // 2. [LOGIC BẢO MẬT CORE] Kiểm tra "Admin cuối cùng"
