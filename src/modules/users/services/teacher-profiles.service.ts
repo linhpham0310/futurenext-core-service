@@ -57,11 +57,14 @@ export class TeacherProfilesService {
       );
     }
 
+    const safeExpertise =
+      dto.expertise && Array.isArray(dto.expertise) ? dto.expertise : [];
+
     // Khởi tạo profile (Status mặc định là PENDING từ DB)
     const newProfile = this.teacherProfileRepo.create({
       userId: userId,
       bio: dto.bio,
-      expertise: dto.expertise,
+      expertise: safeExpertise,
     });
 
     return await this.teacherProfileRepo.save(newProfile);
@@ -86,6 +89,10 @@ export class TeacherProfilesService {
       throw new BadRequestException(
         'Chỉ có thể cập nhật hồ sơ khi đang ở trạng thái chờ duyệt (PENDING).',
       );
+    }
+
+    if (dto.expertise !== undefined) {
+      dto.expertise = Array.isArray(dto.expertise) ? dto.expertise : [];
     }
 
     // Merge dữ liệu mới vào dữ liệu cũ
@@ -208,5 +215,41 @@ export class TeacherProfilesService {
       // Giải phóng kết nối
       await queryRunner.release();
     }
+  }
+
+  // [Task: S3-BE-01] Tìm profile theo userId
+  async findByUserId(userId: string): Promise<TeacherProfile | null> {
+    return this.teacherProfileRepo.findOne({
+      where: { userId },
+      relations: ['user'], // Lấy thêm thông tin user nếu cần
+    });
+  }
+
+  // [Task: S3-BE-01] Lấy profile của user hiện tại (kèm user info)
+  async getMyProfile(userId: string) {
+    const profile = await this.teacherProfileRepo.findOne({
+      where: { userId },
+      relations: ['user'],
+      select: {
+        id: true,
+        bio: true,
+        expertise: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true,
+        },
+      },
+    });
+
+    if (!profile) {
+      return null; // Chưa nộp hồ sơ
+    }
+
+    return profile;
   }
 }

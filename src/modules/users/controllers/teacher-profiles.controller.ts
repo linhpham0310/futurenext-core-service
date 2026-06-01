@@ -8,6 +8,7 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Get,
 } from '@nestjs/common';
 import { TeacherProfilesService } from '../services/teacher-profiles.service';
 import {
@@ -53,6 +54,17 @@ export class TeacherProfilesController {
     return {
       success: true,
       message: 'Cập nhật hồ sơ giáo viên thành công',
+      data: profile,
+    };
+  }
+
+  @Get('my-profile')
+  @HttpCode(HttpStatus.OK)
+  async getMyProfile(@Request() req) {
+    const userId = req.user.id;
+    const profile = await this.teacherProfilesService.findByUserId(userId);
+    return {
+      success: true,
       data: profile,
     };
   }
