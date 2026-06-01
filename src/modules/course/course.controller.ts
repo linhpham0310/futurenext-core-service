@@ -114,4 +114,14 @@ export class CourseController {
   ) {
     return this.courseService.updateOutcomes(courseId, dto);
   }
+
+  /**
+   * TASK S4-CM-02: API GỬI KHÓA HỌC ĐỂ PHÊ DUYỆT
+   * URL: POST /api/v1/courses/:id/submit
+   */
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // (REUSE S1-CM-04: Đảm bảo chính chủ mới được gửi)
+  @Post(':id/submit')
+  async submitCourse(@Param('id') courseId: string) {
+    return this.courseService.submitCourse(courseId);
+  }
 }
