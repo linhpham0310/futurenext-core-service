@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Giả định b
 import { CourseOwnershipGuard } from './guards/course-ownership.guard';
 import { CreateSectionDto } from './dto/create-section.dto';
 
+
 @Controller('courses')
 export class CourseController {
   constructor(private readonly courseService: CourseService) {}
@@ -45,4 +46,5 @@ export class CourseController {
   ) {
     return this.courseService.addSection(courseId, dto);
   }
+
 }
