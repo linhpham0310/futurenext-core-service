@@ -8,12 +8,14 @@ import { CreateSectionDto } from './dto/create-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CreateLessonDto } from './dto/create-lesson.dto';
+import { S3Service } from '../common/s3.service';
 
 @Injectable()
 export class CourseService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2, // Inject EventEmitter2
+    private s3Service: S3Service, // Inject S3Service mới
   ) {}
 
   async createDraft(instructorId: string, dto: CreateCourseDto) {
@@ -106,5 +108,24 @@ export class CourseService {
         slug: slugify(dto.title, { lower: true }), // Tạo slug cho bài học
       },
     });
+  }
+  // TASK S3-CM-02: Xử lý yêu cầu cấp phép upload
+  async getUploadPresignedUrl(
+    courseId: string,
+    fileName: string,
+    fileType: string,
+  ) {
+    // 1. Tạo Key lưu trữ theo cấu trúc: courses/{courseId}/{timestamp}-{fileName}
+    // Cấu trúc này giúp quản lý file dễ dàng và tránh trùng tên
+    const fileKey = `courses/${courseId}/${Date.now()}-${fileName}`;
+    // 2. Gọi S3 Service để lấy URL
+    const uploadUrl = await this.s3Service.generatePresignedUrl(
+      fileKey,
+      fileType,
+    );
+    return {
+      uploadUrl,
+      fileKey, // Trả về key để Frontend sau đó gửi lại Backend lưu vào DB
+    };
   }
 }
