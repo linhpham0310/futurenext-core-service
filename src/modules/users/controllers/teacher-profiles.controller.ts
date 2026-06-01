@@ -19,7 +19,7 @@ import {
 // Import JwtAuthGuard từ module auth (Lưu ý: điều chỉnh đường dẫn tương đối cho khớp với cấu trúc thực tế của bạn)
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
-@Controller('api/teacher-profiles')
+@Controller('teacher-profiles')
 @UseGuards(JwtAuthGuard) // [Task: S3-BE-01] Bắt buộc đăng nhập để gọi các API này
 export class TeacherProfilesController {
   constructor(
