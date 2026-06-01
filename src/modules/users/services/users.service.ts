@@ -263,9 +263,7 @@ export class UsersService {
 
     // Nếu role không thay đổi thì bỏ qua để tối ưu hiệu năng
     if (targetUser.role === newRole) {
-      throw new BadRequestException(
-        `Người dùng này đã có quyền ${newRole} từ trước.`,
-      );
+      return;
     }
 
     // 2. [LOGIC BẢO MẬT CORE] Kiểm tra "Admin cuối cùng"
