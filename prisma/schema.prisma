@@ -1,0 +1,184 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["course_mgmt", "lx"]
+}
+
+enum CourseStatus {
+  DRAFT
+  SUBMITTED
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+
+  @@schema("course_mgmt")
+}
+
+enum LessonType {
+  VIDEO
+  ARTICLE
+  QUIZ
+
+  @@schema("course_mgmt")
+}
+
+model Course {
+  id           String       @id @default(uuid())
+  instructorId String
+  title        String       @db.VarChar(255)
+  slug         String       @unique
+  description  String?      @db.Text
+  thumbnailUrl String?
+  price        Decimal      @default(0.0) @db.Decimal(12, 2)
+  status       CourseStatus @default(DRAFT)
+  outcomes     Json?
+  aiMetadata   Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  sections          Section[]
+  reviewLogs        CourseReviewLog[]
+  curriculumMapping CurriculumMapping[]
+
+  @@index([instructorId])
+  @@index([status])
+  @@schema("course_mgmt")
+  @@map("courses")
+}
+
+model Section {
+  id         String @id @default(uuid())
+  courseId   String
+  title      String @db.VarChar(255)
+  orderIndex Int    @default(0)
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([courseId])
+  @@schema("course_mgmt")
+  @@map("sections")
+}
+
+model Lesson {
+  id            String     @id @default(uuid())
+  sectionId     String
+  title         String     @db.VarChar(255)
+  slug          String
+  type          LessonType @default(VIDEO)
+  content       String?    @db.Text
+  duration      Int?       @default(0)
+  orderIndex    Int        @default(0)
+  isFreePreview Boolean    @default(false)
+
+  // TASK S4-CM-05: Thêm cột metadata cho AI (JSONB)
+  aiMetadata Json @default("[]")
+
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+  @@schema("course_mgmt")
+  @@map("lessons")
+}
+
+model CurriculumMapping {
+  id            String @id @default(uuid())
+  courseId      String
+  keyConcept    String
+  taxonomyLevel Int    @default(1)
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@schema("course_mgmt")
+  @@map("curriculum_mappings")
+}
+
+model CourseReviewLog {
+  id        String       @id @default(uuid())
+  courseId  String
+  adminId   String
+  action    CourseStatus
+  reason    String?      @db.Text
+  createdAt DateTime     @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@schema("course_mgmt")
+  @@map("course_review_logs")
+}
+
+// ---------------------------------------------------------
+// MODULE: LEARNING EXPERIENCE (LX) - SPRINT 1
+// TASK: LX-BE-1.1
+// ---------------------------------------------------------
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+
+  @@schema("lx")
+}
+
+model LearningProgress {
+  id           String         @id @default(uuid())
+  userId       String
+  courseId     String
+  lessonId     String
+  status       ProgressStatus @default(NOT_STARTED)
+  lastPosition Int            @default(0)
+  score        Decimal?       @db.Decimal(5, 2)
+  metadata     Json?          @default("{}")
+  completedAt  DateTime?
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([userId, courseId])
+  @@schema("lx")
+  @@map("lx_learning_progress")
+}
+
+model AIInteraction {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  lessonId        String   @map("lesson_id")
+  interactionType String   @map("interaction_type") @db.VarChar(20)
+  prompt          String   @db.Text
+  response        String   @db.Text
+  contextSnapshot Json?    @map("context_snapshot") @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([userId, lessonId])
+  @@schema("lx")
+  @@map("lx_ai_interactions")
+}
+
+model LxLessonContext {
+  id           String   @id @default(uuid())
+  lessonId     String   @map("lesson_id")
+  chunkIndex   Int      @map("chunk_index")
+  contentChunk String   @map("content_chunk") @db.Text
+  metadata     Json?    @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([lessonId, chunkIndex])
+  @@index([lessonId])
+  @@schema("lx")
+  @@map("lx_lesson_contexts")
+}
+
+model Purchase {
+  id        String   @id @default(uuid())
+  userId    String
+  courseId  String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+  @@schema("lx")
+  @@map("lx_purchases")
+}
