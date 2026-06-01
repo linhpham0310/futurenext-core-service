@@ -6,10 +6,14 @@ import slugify from 'slugify';
 import { nanoid } from 'nanoid';
 import { CreateSectionDto } from './dto/create-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class CourseService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: EventEmitter2, // Inject EventEmitter2
+  ) {}
 
   async createDraft(instructorId: string, dto: CreateCourseDto) {
     const baseSlug = slugify(dto.title, {
@@ -59,19 +63,23 @@ export class CourseService {
     });
   }
 
-  // TASK S2-CM-02: CẬP NHẬT THỨ TỰ CHƯƠNG MỤC HÀNG LOẠT
   async reorderSections(courseId: string, dto: ReorderSectionsDto) {
-    // Sử dụng Transaction để đảm bảo tính an toàn dữ liệu
-    return await this.prisma.$transaction(
+    // 1. Thực hiện Transaction (Logic từ Task 2.2)
+    const updatedSections = await this.prisma.$transaction(
       dto.orders.map((item) =>
         this.prisma.section.update({
-          where: {
-            id: item.id,
-            courseId: courseId, // Bảo mật thêm 1 lớp: phải đúng khóa học
-          },
+          where: { id: item.id, courseId },
           data: { orderIndex: item.orderIndex },
         }),
       ),
     );
+    // 2. TASK S2-CM-03: Phát sự kiện sau khi DB update thành công
+    // Việc này giúp AI Worker hoặc Cache Manager biết để cập nhật lại
+    this.eventEmitter.emit('section.reordered', {
+      courseId,
+      sections: dto.orders,
+      timestamp: new Date(),
+    });
+    return updatedSections;
   }
 }
