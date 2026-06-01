@@ -10,6 +10,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { S3Service } from '../common/s3.service';
 import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
+import { UpdateOutcomesDto } from './dto/update-outcomes.dto';
 
 @Injectable()
 export class CourseService {
@@ -147,6 +148,20 @@ export class CourseService {
       data: {
         content: dto.content,
         duration: dto.duration ?? lesson.duration, // Giữ nguyên duration cũ nếu không gửi mới
+      },
+    });
+  }
+
+  /**
+   * TASK S4-CM-01: CẬP NHẬT KẾT QUẢ ĐẦU RA (SPRINT 4)
+   * Lưu vào cột JSONB để phục vụ AI RAG sau này
+   */
+  async updateOutcomes(courseId: string, dto: UpdateOutcomesDto) {
+    return this.prisma.course.update({
+      where: { id: courseId },
+      data: {
+        // Prisma tự động xử lý chuyển đổi mảng TS sang JSONB của Postgres
+        outcomes: dto.outcomes,
       },
     });
   }

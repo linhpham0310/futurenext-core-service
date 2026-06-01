@@ -17,6 +17,7 @@ import { CreateSectionDto } from './dto/create-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
+import { UpdateOutcomesDto } from './dto/update-outcomes.dto';
 
 @Controller('courses')
 export class CourseController {
@@ -99,5 +100,18 @@ export class CourseController {
     @Body() dto: UpdateLessonContentDto,
   ) {
     return this.courseService.updateLessonContent(lessonId, dto);
+  }
+
+  /**
+   * TASK S4-CM-01: API CẬP NHẬT LEARNING OUTCOMES
+   * URL: PATCH /api/v1/courses/:id/outcomes
+   */
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // (REUSE S1-CM-04 Guard)
+  @Patch(':id/outcomes')
+  async updateOutcomes(
+    @Param('id') courseId: string,
+    @Body() dto: UpdateOutcomesDto,
+  ) {
+    return this.courseService.updateOutcomes(courseId, dto);
   }
 }
