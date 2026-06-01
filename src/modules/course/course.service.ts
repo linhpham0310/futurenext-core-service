@@ -1,5 +1,9 @@
 // src/modules/course/course.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import slugify from 'slugify';
@@ -163,6 +167,59 @@ export class CourseService {
         // Prisma tự động xử lý chuyển đổi mảng TS sang JSONB của Postgres
         outcomes: dto.outcomes,
       },
+    });
+  }
+  /**
+   * TASK S4-CM-02: GỬI DUYỆT KHÓA HỌC (SPRINT 4)
+   * Kiểm tra điều kiện đủ trước khi đổi trạng thái
+   */
+  async submitCourse(courseId: string) {
+    // 1. Lấy thông tin khóa học kèm theo đếm số lượng Section và Lesson
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        _count: {
+          select: {
+            sections: true,
+          },
+        },
+        sections: {
+          include: {
+            _count: {
+              select: { lessons: true },
+            },
+          },
+        },
+      },
+    });
+    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
+    // 2. KIỂM TRA ĐIỀU KIỆN (Validation Logic - Task S4-CM-02)
+    // Điều kiện 1: Phải có ảnh Thumbnail
+    if (!course.thumbnailUrl) {
+      throw new BadRequestException(
+        'Khóa học cần có ảnh đại diện (Thumbnail) trước khi gửi duyệt',
+      );
+    }
+    // Điều kiện 2: Phải có ít nhất 1 Section
+    if (course._count.sections === 0) {
+      throw new BadRequestException(
+        'Khóa học phải có ít nhất một chương mục (Section)',
+      );
+    }
+    // Điều kiện 3: Tổng số bài học phải > 0
+    const totalLessons = course.sections.reduce(
+      (sum, section) => sum + section._count.lessons,
+      0,
+    );
+    if (totalLessons === 0) {
+      throw new BadRequestException(
+        'Khóa học phải có ít nhất một bài học (Lesson) nội dung',
+      );
+    }
+    // 3. Cập nhật trạng thái sang SUBMITTED
+    return this.prisma.course.update({
+      where: { id: courseId },
+      data: { status: 'SUBMITTED' },
     });
   }
 }
