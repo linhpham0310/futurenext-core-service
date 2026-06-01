@@ -12,6 +12,7 @@ import { SharedModule } from './shared/shared.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MailerModule } from '@nestjs-modules/mailer';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -112,6 +113,11 @@ import { MailerModule } from '@nestjs-modules/mailer';
           from: config.get('SMTP_FROM'),
         },
       }),
+    }),
+    // Task S2-CM-03: Kích hoạt Event Emitter cho toàn hệ thống
+    EventEmitterModule.forRoot({
+      wildcard: true, // Cho phép dùng dấu * để lắng nghe nhiều sự kiện
+      delimiter: '.', // Quy ước tên sự kiện dạng section.reordered
     }),
 
     // --- 4. Import các module nghiệp vụ & shared ---
