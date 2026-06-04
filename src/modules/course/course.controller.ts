@@ -18,6 +18,10 @@ import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
 import { UpdateOutcomesDto } from './dto/update-outcomes.dto';
+import { RolesGuard } from '@/shared/guards/roles.guard';
+import { Roles } from '@/shared/decorators/roles.decorator';
+import { ProcessReviewDto } from './dto/process-review.dto';
+import { UserRole } from '../users/entities/user.entity';
 
 @Controller('courses')
 export class CourseController {
@@ -123,5 +127,20 @@ export class CourseController {
   @Post(':id/submit')
   async submitCourse(@Param('id') courseId: string) {
     return this.courseService.submitCourse(courseId);
+  }
+  /**
+   * TASK S4-CM-03: API ADMIN PHÊ DUYỆT KHÓA HỌC
+   * URL: PATCH /api/v1/courses/:id/review
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin' as UserRole) // Chỉ Admin mới có quyền truy cập route này
+  @Patch(':id/review')
+  async processReview(
+    @Param('id') courseId: string,
+    @Request() req,
+    @Body() dto: ProcessReviewDto,
+  ) {
+    const adminId = req.user.id;
+    return this.courseService.processReview(courseId, adminId, dto);
   }
 }

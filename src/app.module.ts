@@ -13,6 +13,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
@@ -118,6 +119,12 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     EventEmitterModule.forRoot({
       wildcard: true, // Cho phép dùng dấu * để lắng nghe nhiều sự kiện
       delimiter: '.', // Quy ước tên sự kiện dạng section.reordered
+    }),
+
+    // TASK S4-CM-04: Kết nối Redis Cache
+    RedisModule.forRoot({
+      type: 'single',
+      url: process.env.REDIS_URL || 'redis://localhost:6379',
     }),
 
     // --- 4. Import các module nghiệp vụ & shared ---

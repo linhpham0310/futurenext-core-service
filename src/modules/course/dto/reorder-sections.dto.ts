@@ -1,5 +1,6 @@
 import { IsArray, IsString, IsInt, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+
 class SectionOrderDto {
   @IsString()
   id: string;
@@ -7,6 +8,7 @@ class SectionOrderDto {
   @IsInt()
   orderIndex: number;
 }
+
 export class ReorderSectionsDto {
   @IsArray()
   @ValidateNested({ each: true })

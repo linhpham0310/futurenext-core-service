@@ -5,6 +5,7 @@ import {
   IsNumber,
   Min,
 } from 'class-validator';
+
 export class CreateCourseDto {
   @IsString()
   @IsNotEmpty({ message: 'Tiêu đề khóa học không được để trống' })

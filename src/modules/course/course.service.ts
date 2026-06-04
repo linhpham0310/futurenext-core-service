@@ -15,6 +15,8 @@ import { CreateLessonDto } from './dto/create-lesson.dto';
 import { S3Service } from '../common/s3.service';
 import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
 import { UpdateOutcomesDto } from './dto/update-outcomes.dto';
+import { ProcessReviewDto } from './dto/process-review.dto';
+import { CourseStatus } from '@prisma/client';
 
 @Injectable()
 export class CourseService {
@@ -221,5 +223,53 @@ export class CourseService {
       where: { id: courseId },
       data: { status: 'SUBMITTED' },
     });
+  }
+  /**
+   * TASK S4-CM-03: ADMIN XỬ LÝ PHÊ DUYỆT KHÓA HỌC (SPRINT 4)
+   * Sử dụng Transaction để đảm bảo tính ACID
+   */
+  async processReview(
+    courseId: string,
+    adminId: string,
+    dto: ProcessReviewDto,
+  ) {
+    // 1. Kiểm tra khóa học có đang ở trạng thái SUBMITTED không
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+    if (!course) throw new NotFoundException('Khóa học không tồn tại');
+    if (course.status !== 'SUBMITTED') {
+      throw new BadRequestException(
+        'Khóa học phải ở trạng thái chờ duyệt (SUBMITTED)',
+      );
+    }
+    // 2. THỰC THI TRANSACTION (Task S4-CM-03)
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Hành động A: Cập nhật trạng thái khóa học
+      const updatedCourse = await tx.course.update({
+        where: { id: courseId },
+        data: { status: dto.action },
+      });
+      // Hành động B: Ghi nhật ký vào bảng course_review_logs
+      await tx.courseReviewLog.create({
+        data: {
+          courseId: courseId,
+          adminId: adminId,
+          action: dto.action,
+          reason: dto.reason || 'No reason provided',
+        },
+      });
+      return updatedCourse;
+    });
+    // 3. TASK S4-CM-04: Phát sự kiện nếu khóa học được PUBLISHED
+    if (dto.action === CourseStatus.PUBLISHED) {
+      this.eventEmitter.emit('course.published', {
+        courseId: result.id,
+        instructorId: result.instructorId,
+        title: result.title,
+      });
+    }
+
+    return result;
   }
 }
