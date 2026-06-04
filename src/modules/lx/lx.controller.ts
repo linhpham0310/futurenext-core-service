@@ -1,7 +1,16 @@
-import { Controller, Get, Param, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  UseGuards,
+  Request,
+  Post,
+  Body,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CourseEntitlementGuard } from './guards/course-entitlement.guard';
 import { LxService } from './lx.service';
+import { LogAiInteractionDto } from './dto/log-ai-interaction.dto';
 @Controller('lx')
 export class LxController {
   constructor(private readonly lxService: LxService) {}
@@ -33,5 +42,16 @@ export class LxController {
   @Get('lesson/:id')
   async getLessonContent(@Param('id') id: string, @Request() req) {
     return this.lxService.getLessonContent(id, req.user.id);
+  }
+
+  /**
+   * TASK: LX-AI-1.1 (SPRINT 1): API Test ghi nhật ký AI Interaction
+   * URL: POST /api/v1/lx/ai/test-log
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('ai/test-log')
+  async testAiLog(@Request() req, @Body() dto: LogAiInteractionDto) {
+    const userId = req.user.id;
+    return this.lxService.logAiInteraction(userId, dto);
   }
 }
