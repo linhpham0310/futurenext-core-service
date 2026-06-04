@@ -22,6 +22,7 @@ import { RolesGuard } from '@/shared/guards/roles.guard';
 import { Roles } from '@/shared/decorators/roles.decorator';
 import { ProcessReviewDto } from './dto/process-review.dto';
 import { UserRole } from '../users/entities/user.entity';
+import { UpdateLessonMetadataDto } from './dto/update-lesson-metadata.dto';
 
 @Controller('courses')
 export class CourseController {
@@ -142,5 +143,17 @@ export class CourseController {
   ) {
     const adminId = req.user.id;
     return this.courseService.processReview(courseId, adminId, dto);
+  }
+  /**
+   * TASK S4-CM-05: API GẮN KEY CONCEPTS CHO BÀI HỌC
+   * URL: PATCH /api/v1/courses/:id/lessons/:lessonId/metadata
+   */
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Patch(':id/lessons/:lessonId/metadata')
+  async updateMetadata(
+    @Param('lessonId') lessonId: string,
+    @Body() dto: UpdateLessonMetadataDto,
+  ) {
+    return this.courseService.updateLessonMetadata(lessonId, dto);
   }
 }

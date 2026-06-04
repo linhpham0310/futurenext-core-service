@@ -17,6 +17,7 @@ import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
 import { UpdateOutcomesDto } from './dto/update-outcomes.dto';
 import { ProcessReviewDto } from './dto/process-review.dto';
 import { CourseStatus } from '@prisma/client';
+import { UpdateLessonMetadataDto } from './dto/update-lesson-metadata.dto';
 
 @Injectable()
 export class CourseService {
@@ -271,5 +272,21 @@ export class CourseService {
     }
 
     return result;
+  }
+
+  /**
+   * TASK S4-CM-05: CẬP NHẬT METADATA CHO AI (SPRINT 4)
+   */
+  async updateLessonMetadata(lessonId: string, dto: UpdateLessonMetadataDto) {
+    return this.prisma.lesson.update({
+      where: { id: lessonId },
+      data: {
+        aiMetadata: {
+          keyConcepts: dto.keyConcepts,
+          updatedAt: new Date().toISOString(),
+          ...dto.otherMetadata,
+        },
+      },
+    });
   }
 }
