@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   ArrayNotEmpty,
 } from 'class-validator';
+
 export class UpdateOutcomesDto {
   // TASK S4-CM-01: Validate mảng các kết quả đầu ra
   @IsArray({ message: 'Outcomes phải là một mảng' })
