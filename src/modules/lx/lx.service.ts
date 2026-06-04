@@ -100,4 +100,50 @@ export class LxService {
       sections: sectionsWithProgress,
     };
   }
+
+  /**
+   * TASK LX-BE-1.4: Lấy chi tiết nội dung bài học và tiến độ cá nhân
+   */
+  async getLessonDetail(lessonId: string, userId: string) {
+    // 1. Lấy thông tin chi tiết bài học
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+    if (!lesson) {
+      throw new NotFoundException('Bài học không tồn tại');
+    }
+    // 2. Tìm hoặc Tự động khởi tạo tiến độ học tập (Optimistic Initialization)
+    // Nếu học viên lần đầu bấm vào bài này, chúng ta tạo luôn bản ghi NOT_STARTED
+    let progress = await this.prisma.learningProgress.findUnique({
+      where: {
+        userId_lessonId: { userId, lessonId },
+      },
+    });
+    if (!progress) {
+      progress = await this.prisma.learningProgress.create({
+        data: {
+          userId,
+          lessonId,
+          courseId: lesson.courseId,
+          status: 'NOT_STARTED',
+          lastPosition: 0,
+        },
+      });
+    }
+    // 3. Trả về object gộp (Sử dụng cho Player/Editor ở Frontend)
+    return {
+      id: lesson.id,
+      title: lesson.title,
+      type: lesson.type, // VIDEO, ARTICLE, QUIZ, LAB
+      content: lesson.content, // Đây là lúc chúng ta trả về dữ liệu nặng (Video URL/Markdown)
+      duration: lesson.duration,
+      metadata: lesson.aiMetadata, // Metadata từ Module Course (S4-CM-05)
+      userProgress: {
+        status: progress.status,
+        lastPosition: progress.lastPosition,
+        score: progress.score,
+        metadata: progress.metadata,
+      },
+    };
+  }
 }

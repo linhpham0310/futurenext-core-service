@@ -15,6 +15,17 @@ export class LxController {
     return this.lxService.getRuntimeOverview(courseId, req.user.id);
   }
 
+  /**
+   * TASK LX-BE-1.4: API lấy chi tiết nội dung bài học
+   * URL: GET /api/v1/lx/lesson/:id
+   */
+  @UseGuards(JwtAuthGuard, CourseEntitlementGuard) // Bảo vệ 2 lớp: Login & Mua khóa học
+  @Get('lesson/:id')
+  async getLesson(@Param('id') id: string, @Request() req) {
+    const userId = req.user.id;
+    return this.lxService.getLessonDetail(id, userId);
+  }
+
   // ---------------------------------------------------------
   // TASK: LX-BE-1.2: Áp dụng Guard bảo vệ nội dung bài học
   // ---------------------------------------------------------
