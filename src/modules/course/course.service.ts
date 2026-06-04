@@ -16,6 +16,7 @@ import { S3Service } from '../common/s3.service';
 import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
 import { UpdateOutcomesDto } from './dto/update-outcomes.dto';
 import { ProcessReviewDto } from './dto/process-review.dto';
+import { CourseStatus } from '@prisma/client';
 
 @Injectable()
 export class CourseService {
@@ -243,7 +244,7 @@ export class CourseService {
       );
     }
     // 2. THỰC THI TRANSACTION (Task S4-CM-03)
-    return await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Hành động A: Cập nhật trạng thái khóa học
       const updatedCourse = await tx.course.update({
         where: { id: courseId },
@@ -260,5 +261,15 @@ export class CourseService {
       });
       return updatedCourse;
     });
+    // 3. TASK S4-CM-04: Phát sự kiện nếu khóa học được PUBLISHED
+    if (dto.action === CourseStatus.PUBLISHED) {
+      this.eventEmitter.emit('course.published', {
+        courseId: result.id,
+        instructorId: result.instructorId,
+        title: result.title,
+      });
+    }
+
+    return result;
   }
 }
