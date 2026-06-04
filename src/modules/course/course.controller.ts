@@ -156,4 +156,14 @@ export class CourseController {
   ) {
     return this.courseService.updateLessonMetadata(lessonId, dto);
   }
+  /**
+   * TASK S4-CM-06: API LẤY CHI TIẾT KHÓA HỌC DÀNH RIÊNG CHO ADMIN REVIEW
+   * URL: GET /api/v1/courses/:id/admin-detail
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin' as UserRole)
+  @Get(':id/admin-detail')
+  async getAdminDetail(@Param('id') id: string) {
+    return this.courseService.getCourseDetailWithFullContent(id); // Hàm này fetch kèm Sections & Lessons
+  }
 }
