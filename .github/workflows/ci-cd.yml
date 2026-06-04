@@ -1,0 +1,75 @@
+# ==========================================================
+# TASK: S5-CM-02 - CI/CD PIPELINE FOR COURSE MANAGEMENT
+# ==========================================================
+name: FutureNext Course Management CI/CD
+
+on:
+  push:
+    branches: ['main', 'develop']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  # JOB 1: Kiểm tra chất lượng code và logic
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma Generate
+        run: npx prisma generate
+
+      # 1. Bước Linting (NEW - S5-CM-02)
+      - name: Run Lint
+        run: npm run lint
+
+      # 2. Bước Unit Test (NEW - S5-CM-02)
+      - name: Run Unit Tests
+        run: npm run test
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  # JOB 2: Đóng gói và Deploy (Chỉ chạy khi push lên main)
+  build-and-deploy:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 3. Bước Docker Build (NEW - S5-CM-02)
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/futurenext-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/futurenext-backend:${{ github.sha }}
+
+      # 4. Deploy to Cloud Run (Optional)
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v1
+        with:
+          service: futurenext-core-service-staging
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/futurenext-backend:latest
+          region: asia-southeast1
+          credentials: ${{ secrets.GCP_SA_KEY }}
