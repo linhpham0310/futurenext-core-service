@@ -27,7 +27,7 @@ COPY --from=builder /app/scripts ./scripts
 # Cấp quyền thực thi cho script
 RUN chmod +x ./scripts/start-prod.sh
 
-EXPOSE 3000
+EXPOSE 8080
 
 # TASK S5-CM-04: Thay đổi lệnh khởi chạy
 ENTRYPOINT ["./scripts/start-prod.sh"]
