@@ -161,20 +161,25 @@ model AIInteraction {
   userId          String   @map("user_id")
   lessonId        String   @map("lesson_id")
   
+  // Loại tương tác: 'CHAT' (AI TA) hoặc 'LAB_COACH' (AI Lab) (LLD Page 2)
   interactionType String   @map("interaction_type") @db.VarChar(20)
+
+  // Câu hỏi đầu vào của học viên
   prompt          String   @db.Text
+
+  // Phản hồi trả về từ hệ thống AI (FastAPI Adapter)
   response        String   @db.Text
+
+  // JSONB snapshot lưu nội dung bài học tại thời điểm hỏi để RAG ổn định (LLD Page 2)
   contextSnapshot Json?    @map("context_snapshot") @default("{}")
-  // 'USER' hoặc 'AI'
-  role String
-  // Nội dung tin nhắn
-  content String @db.Text
-  // Lưu thêm thông tin: model dùng, tokens, thời gian xử lý...
-  metadata Json? @default("{}")
+  
   createdAt       DateTime @default(now()) @map("created_at")
 
+  // Thiết lập các Index tăng tốc truy vấn lịch sử cho học viên (LLD Page 1)
   @@index([userId, lessonId])
   @@schema("lx")
+
+  // Map chính xác tên bảng vật lý trong PostgreSQL
   @@map("lx_ai_interactions")
 }
 

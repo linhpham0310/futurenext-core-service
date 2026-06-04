@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
+import { LogAiInteractionDto } from './dto/log-ai-interaction.dto';
 
 @Injectable()
 export class LxService {
@@ -186,5 +187,23 @@ export class LxService {
         metadata: progress.metadata,
       },
     };
+  }
+
+  /**
+   * TASK: LX-AI-1.1 (SPRINT 1): Lưu nhật ký tương tác AI
+   * Hàm này sẽ được gọi tập trung từ AI TA Service (Sprint 3) hoặc Lab Service (Sprint 4)
+   */
+  async logAiInteraction(userId: string, dto: LogAiInteractionDto) {
+    // Luôn kiểm tra tính hợp lệ của user_id từ JWT (Mục 6.2 Developer Notes)
+    return this.prisma.aIInteraction.create({
+      data: {
+        userId: userId,
+        lessonId: dto.lessonId,
+        interactionType: dto.interactionType,
+        prompt: dto.prompt,
+        response: dto.response,
+        contextSnapshot: dto.contextSnapshot || {},
+      },
+    });
   }
 }
