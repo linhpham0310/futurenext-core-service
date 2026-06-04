@@ -129,14 +129,24 @@ enum ProgressStatus {
 
 model LearningProgress {
   id           String         @id @default(uuid())
+
   userId       String
   courseId     String
   lessonId     String
+
   status       ProgressStatus @default(NOT_STARTED)
+
+  // Giây video hoặc vị trí code
   lastPosition Int            @default(0)
+
+  // Quiz/Lab score
   score        Decimal?       @db.Decimal(5, 2)
+
+  // Metadata linh hoạt
   metadata     Json?          @default("{}")
+
   completedAt  DateTime?
+
   updatedAt    DateTime       @updatedAt
 
   @@unique([userId, lessonId])
@@ -147,12 +157,20 @@ model LearningProgress {
 
 model AIInteraction {
   id              String   @id @default(uuid())
+
   userId          String   @map("user_id")
   lessonId        String   @map("lesson_id")
+  
   interactionType String   @map("interaction_type") @db.VarChar(20)
   prompt          String   @db.Text
   response        String   @db.Text
   contextSnapshot Json?    @map("context_snapshot") @default("{}")
+  // 'USER' hoặc 'AI'
+  role String
+  // Nội dung tin nhắn
+  content String @db.Text
+  // Lưu thêm thông tin: model dùng, tokens, thời gian xử lý...
+  metadata Json? @default("{}")
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@index([userId, lessonId])

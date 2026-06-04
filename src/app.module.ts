@@ -14,6 +14,7 @@ import { AppService } from './app.service';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RedisModule } from '@nestjs-modules/ioredis';
+import { LxModule } from './modules/lx/lx.module';
 
 @Module({
   imports: [
@@ -131,6 +132,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
     AuthModule,
     UsersModule,
     SharedModule,
+    LxModule,
   ],
   controllers: [AppController], // Controller cho health check (nếu có)
   providers: [AppService], // Không dùng global guard cho Throttler
