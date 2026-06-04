@@ -1,5 +1,5 @@
-import { IsEnum, IsString, IsOptional, ValidateIf } from 'class-validator';
 import { CourseStatus } from '@prisma/client';
+import { IsEnum, IsString, IsOptional, ValidateIf } from 'class-validator';
 
 export class ProcessReviewDto {
   // TASK S4-CM-03: Chỉ cho phép Admin chọn APPROVED hoặc REJECTED
