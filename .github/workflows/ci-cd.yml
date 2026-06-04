@@ -39,8 +39,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-  # JOB 2: Đóng gói và Deploy (Chỉ chạy khi push lên main)
-  build-and-deploy:
+  # TASK S5-CM-04: Cập nhật Job build để bao gồm thông tin DB
+  build-docker:
     needs: lint-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -65,11 +65,6 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/futurenext-backend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/futurenext-backend:${{ github.sha }}
 
-      # 4. Deploy to Cloud Run (Optional)
-      - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v1
-        with:
-          service: futurenext-core-service-staging
-          image: ${{ secrets.DOCKERHUB_USERNAME }}/futurenext-backend:latest
-          region: asia-southeast1
-          credentials: ${{ secrets.GCP_SA_KEY }}
+          # TASK S5-CM-04: Đảm bảo build có kèm các file migration mới nhất
+          build-args: |
+            DATABASE_URL=${{ secrets.DATABASE_URL_PROD }}
