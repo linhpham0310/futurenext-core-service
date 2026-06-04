@@ -11,6 +11,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CourseEntitlementGuard } from './guards/course-entitlement.guard';
 import { LxService } from './lx.service';
 import { LogAiInteractionDto } from './dto/log-ai-interaction.dto';
+import { IngestLessonContextDto } from './dto/ingest-lesson-context.dto';
 @Controller('lx')
 export class LxController {
   constructor(private readonly lxService: LxService) {}
@@ -53,5 +54,25 @@ export class LxController {
   async testAiLog(@Request() req, @Body() dto: LogAiInteractionDto) {
     const userId = req.user.id;
     return this.lxService.logAiInteraction(userId, dto);
+  }
+
+  /**
+   * TASK: LX-AI-1.2 (SPRINT 1) - API đồng bộ tri thức bài học phục vụ AI TA
+   * URL: POST /api/v1/lx/lessons/:lessonId/contexts
+   */
+  @Post('lessons/:lessonId/contexts')
+  async ingestContext(
+    @Param('lessonId') lessonId: string,
+    @Body() dto: IngestLessonContextDto,
+  ) {
+    return this.lxService.ingestLessonContext(lessonId, dto);
+  }
+  /**
+   * TASK: LX-AI-1.2 (SPRINT 1) - API nội bộ test truy xuất tri thức bài học
+   * URL: GET /api/v1/lx/lessons/:lessonId/contexts
+   */
+  @Get('lessons/:lessonId/contexts')
+  async getContexts(@Param('lessonId') lessonId: string) {
+    return this.lxService.getLessonContextsForRag(lessonId);
   }
 }

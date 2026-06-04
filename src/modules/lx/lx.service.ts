@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import { LogAiInteractionDto } from './dto/log-ai-interaction.dto';
+import { IngestLessonContextDto } from './dto/ingest-lesson-context.dto';
 
 @Injectable()
 export class LxService {
@@ -203,6 +204,46 @@ export class LxService {
         prompt: dto.prompt,
         response: dto.response,
         contextSnapshot: dto.contextSnapshot || {},
+      },
+    });
+  }
+
+  /**
+   * TASK: LX-AI-1.2 (SPRINT 1) - Nạp ngữ cảnh bài học (Knowledge Ingestion)
+   * Xóa các context cũ và đồng bộ danh sách phân đoạn kiến thức mới phục vụ RAG
+   */
+  async ingestLessonContext(lessonId: string, dto: IngestLessonContextDto) {
+    // Sử dụng $transaction để đảm bảo tính toàn vẹn dữ liệu khi làm mới dữ liệu
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Dọn dẹp sạch các chunk cũ của bài học này nếu có
+      await tx.lxLessonContext.deleteMany({
+        where: { lessonId },
+      });
+      // 2. Chuyển đổi dữ liệu nạp hàng loạt
+      const recordsToCreate = dto.chunks.map((chunk) => ({
+        lessonId: lessonId,
+        chunkIndex: chunk.chunkIndex,
+        contentChunk: chunk.contentChunk,
+        metadata: chunk.metadata || {},
+      }));
+      // 3. Thực thi lưu trữ hàng loạt vào DB
+      return tx.lxLessonContext.createMany({
+        data: recordsToCreate,
+      });
+    });
+  }
+  /**
+   * TASK: LX-AI-1.2 (SPRINT 1) - API nội bộ phục vụ RAG Service ở Sprint 3
+   * Lấy nhanh toàn bộ text chunks liên quan đến bài học
+   */
+  async getLessonContextsForRag(lessonId: string) {
+    return this.prisma.lxLessonContext.findMany({
+      where: { lessonId },
+      orderBy: { chunkIndex: 'asc' },
+      select: {
+        chunkIndex: true,
+        contentChunk: true,
+        metadata: true,
       },
     });
   }

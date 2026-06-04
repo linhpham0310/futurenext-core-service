@@ -186,12 +186,22 @@ model AIInteraction {
 model LxLessonContext {
   id           String   @id @default(uuid())
   lessonId     String   @map("lesson_id")
+
+  // Thứ tự của đoạn văn bản trong bài học (0, 1, 2...) giúp tái tạo lại văn bản khi cần
   chunkIndex   Int      @map("chunk_index")
+
+  // Nội dung thô của phân đoạn kiến thức (Paragraph/Chunk) dùng để feed vào Prompt AI
   contentChunk String   @map("content_chunk") @db.Text
+
+  // Lưu trữ các metadata bổ trợ: từ khóa chính, thực thể (entities), hoặc vector id
   metadata     Json?    @default("{}")
+
   createdAt    DateTime @default(now()) @map("created_at")
 
+  // Ràng buộc đảm bảo không bị trùng lặp vị trí phân đoạn của một bài học
   @@unique([lessonId, chunkIndex])
+
+  // Tối ưu hóa tốc độ truy vấn tìm kiếm Knowledge theo bài học
   @@index([lessonId])
   @@schema("lx")
   @@map("lx_lesson_contexts")
