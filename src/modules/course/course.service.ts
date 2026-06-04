@@ -289,4 +289,17 @@ export class CourseService {
       },
     });
   }
+
+  async getCourseDetailWithFullContent(id: string) {
+    return this.prisma.course.findUnique({
+      where: { id },
+      include: {
+        sections: {
+          include: {
+            lessons: true,
+          },
+        },
+      },
+    });
+  }
 }
