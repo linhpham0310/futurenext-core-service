@@ -16,7 +16,7 @@ import { CacheManagerListener } from './listeners/cache-manager.listener'; // (N
     CourseOwnershipGuard,
     CourseEventListener,
     S3Service,
-    CacheManagerListener, // Đăng ký Listener mới tại đây
+    CacheManagerListener,
   ],
 })
 export class CourseModule {}
