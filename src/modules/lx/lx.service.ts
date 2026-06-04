@@ -8,6 +8,43 @@ import { PrismaService } from 'prisma/prisma.service';
 @Injectable()
 export class LxService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * TASK LX-BE-1.5: Logic khởi tạo tiến độ hàng loạt
+   * Hàm này đảm bảo mọi bài học trong khóa đều có bản ghi tiến độ cho User
+   */
+  private async ensureProgressInitialized(courseId: string, userId: string) {
+    // 1. Lấy danh sách tất cả LessonId của khóa học này
+    const allLessons = await this.prisma.lesson.findMany({
+      where: { courseId },
+      select: { id: true },
+    });
+    // 2. Lấy danh sách LessonId đã có bản ghi tiến độ
+    const existingProgress = await this.prisma.learningProgress.findMany({
+      where: { userId, courseId },
+      select: { lessonId: true },
+    });
+    const existingLessonIds = new Set(existingProgress.map((p) => p.lessonId));
+    // 3. Lọc ra các LessonId chưa có bản ghi tiến độ
+    const missingLessonIds = allLessons
+      .filter((lesson) => !existingLessonIds.has(lesson.id))
+      .map((lesson) => lesson.id);
+    // 4. Nếu có bài học thiếu, thực hiện khởi tạo hàng loạt (Bulk Insert)
+    if (missingLessonIds.length > 0) {
+      const dataToCreate = missingLessonIds.map((lessonId) => ({
+        userId,
+        courseId,
+        lessonId,
+        status: 'NOT_STARTED' as const,
+      }));
+      // Sử dụng createMany để tối ưu hiệu suất (Chỉ chạy trên Postgres)
+      await this.prisma.learningProgress.createMany({
+        data: dataToCreate,
+        skipDuplicates: true, // Đảm bảo an toàn nếu có race condition
+      });
+    }
+  }
+
   async getLessonContent(lessonId: string, userId: string) {
     // ---------------------------------------------------------
     // TASK: LX-BE-1.2: Trả về nội dung sau khi đã pass Guard
@@ -39,10 +76,14 @@ export class LxService {
       },
     });
     if (!purchase) {
-      throw new ForbiddenException(
-        'Bạn không có quyền truy cập lộ trình học này',
-      );
+      throw new ForbiddenException('Bạn không có quyền truy cập ');
     }
+
+    // ---------------------------------------------------------
+    // TASK: LX-BE-1.5: Tự động khởi tạo nếu chưa đủ
+    // ---------------------------------------------------------
+    await this.ensureProgressInitialized(courseId, userId);
+
     // 2. Lấy toàn bộ cấu trúc khóa học (Sections & Lessons)
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
