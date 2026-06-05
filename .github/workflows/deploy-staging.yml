@@ -65,15 +65,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build TypeORM
+        run: npm run build
+
       - name: Generate Prisma Client
         run: npx prisma generate
 
-      - name: Run migrations
+      # Bước 1: TypeORM migrations (Bootstrap extensions + Auth schema)
+      - name: Run TypeORM migrations
+        run: npx typeorm migration:run -d dist/src/config/data-source.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT_STAGING }}
+          NODE_ENV: staging
+
+      # Bước 2: Prisma migrations (course_mgmt + lx schemas)
+      - name: Run Prisma migrations
         run: npx prisma migrate deploy
         env:
-          # QUAN TRỌNG: Dùng Direct URL (port 5432), KHÔNG dùng pooler (port 6543)
           DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT_STAGING }}
-
   # ============================================================
   # JOB 3: Deploy lên Cloud Run (chỉ chạy sau khi migrate xong)
   # ============================================================
