@@ -15,6 +15,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { LxModule } from './modules/lx/lx.module';
+import { PrismaModule } from 'prisma/prisma.module';
 
 @Module({
   imports: [
@@ -133,6 +134,7 @@ import { LxModule } from './modules/lx/lx.module';
     UsersModule,
     SharedModule,
     LxModule,
+    PrismaModule,
   ],
   controllers: [AppController], // Controller cho health check (nếu có)
   providers: [AppService], // Không dùng global guard cho Throttler
