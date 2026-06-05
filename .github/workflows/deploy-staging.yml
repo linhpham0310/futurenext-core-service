@@ -83,6 +83,8 @@ jobs:
         run: npx prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT_STAGING }}
+          DIRECT_URL: ${{ secrets.DATABASE_URL_DIRECT_STAGING }} # ← thêm dòng này
+
   # ============================================================
   # JOB 3: Deploy lên Cloud Run (chỉ chạy sau khi migrate xong)
   # ============================================================
