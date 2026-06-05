@@ -8,6 +8,7 @@ datasource db {
   url      = env("DATABASE_URL")  
   schemas  = ["course_mgmt", "lx"]
   extensions = [uuid_ossp, vector] 
+  directUrl = env("DIRECT_URL")  
 }
 
 enum CourseStatus {

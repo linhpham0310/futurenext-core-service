@@ -4,7 +4,6 @@ export class InitializeAuthUserSchemaV11778487639590 implements MigrationInterfa
   name = 'InitializeAuthUserSchemaV11778487639590';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "citext"`);
     await queryRunner.query(
       `CREATE TABLE "user_credentials" ("user_id" uuid NOT NULL, "password_hash" text NOT NULL, "password_algo" text NOT NULL DEFAULT 'bcrypt', "password_updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "must_change_password" boolean NOT NULL DEFAULT false, CONSTRAINT "CHK_d18c3f9696cbce32c6b665ed53" CHECK ("password_algo" = 'bcrypt'), CONSTRAINT "PK_dd0918407944553611bb3eb3ddc" PRIMARY KEY ("user_id"))`,
     );
