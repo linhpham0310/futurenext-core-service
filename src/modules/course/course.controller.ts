@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Giả định bạn đã có Guard này
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CourseOwnershipGuard } from './guards/course-ownership.guard';
 import { CreateSectionDto } from './dto/create-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
@@ -23,32 +23,41 @@ import { Roles } from '@/shared/decorators/roles.decorator';
 import { ProcessReviewDto } from './dto/process-review.dto';
 import { UserRole } from '../users/entities/user.entity';
 import { UpdateLessonMetadataDto } from './dto/update-lesson-metadata.dto';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 @Controller('courses')
 export class CourseController {
-  constructor(private readonly courseService: CourseService) {}
+  [x: string]: any;
+  constructor(
+    private readonly courseService: CourseService,
+    private readonly storage: SupabaseStorageService,
+  ) {}
 
-  @UseGuards(JwtAuthGuard) // Bảo mật: Chỉ người dùng đăng nhập mới được tạo
+  @UseGuards(JwtAuthGuard)
   @Post('draft')
   async createDraft(@Request() req, @Body() dto: CreateCourseDto) {
-    // Lấy ID người dùng từ Token đã decode qua JwtAuthGuard
-    const instructorId = req.user.id;
+    const instructorId = req.user.sub;
     return this.courseService.createDraft(instructorId, dto);
+  }
+
+  @Get()
+  async findAllPublished(@Query() query: any) {
+    return this.courseService.findAllPublished(query);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my-courses')
+  async getMyCourses(@Request() req) {
+    return this.courseService.getMyCourses(req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Patch(':id')
-  async updateCourse(
-    @Param('id') id: string,
-    @Body() updateData: any, // Nên thay bằng UpdateCourseDto sau này
-  ) {
-    // Nếu code chạy đến đây, nghĩa là Guard đã xác nhận ID này thuộc về User đang login
+  async updateCourse(@Param('id') id: string, @Body() updateData: any) {
     return this.courseService.update(id, updateData);
   }
 
-  // TASK S2-CM-01: API thêm chương mục vào khóa học
-  // URL: POST /api/v1/courses/:id/sections
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // Bảo vệ chống IDOR từ Task 1.4
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Post(':id/sections')
   async addSection(
     @Param('id') courseId: string,
@@ -57,9 +66,7 @@ export class CourseController {
     return this.courseService.addSection(courseId, dto);
   }
 
-  // TASK S2-CM-02: API sắp xếp lại thứ tự các chương mục
-  // URL: PATCH /api/v1/courses/:id/sections/reorder
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // Tái sử dụng Guard bảo mật từ Sprint 1
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Patch(':id/sections/reorder')
   async reorderSections(
     @Param('id') courseId: string,
@@ -67,8 +74,16 @@ export class CourseController {
   ) {
     return this.courseService.reorderSections(courseId, dto);
   }
-  // TASK S3-CM-01: API thêm bài học vào một chương mục
-  // URL: POST /api/v1/courses/:id/sections/:sectionId/lessons
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Patch(':id/sections/:sectionId')
+  async updateSection(
+    @Param('sectionId') sectionId: string,
+    @Body() dto: { title: string },
+  ) {
+    return this.courseService.updateSection(sectionId, dto);
+  }
+
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Post(':id/sections/:sectionId/lessons')
   async addLesson(
@@ -78,26 +93,22 @@ export class CourseController {
     return this.courseService.addLesson(sectionId, dto);
   }
 
-  // TASK S3-CM-02: API lấy URL Upload Media
-  // URL: GET /api/v1/courses/:id/upload-url?fileName=video.mp4&fileType=video/mp4
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // Rất quan trọng: Check quyền sở hữu khóa học
+  @UseGuards(JwtAuthGuard)
   @Get(':id/upload-url')
   async getUploadUrl(
     @Param('id') courseId: string,
     @Query('fileName') fileName: string,
     @Query('fileType') fileType: string,
   ) {
-    return this.courseService.getUploadPresignedUrl(
-      courseId,
-      fileName,
-      fileType,
-    );
+    return this.storage.createSignedUploadUrl(courseId, fileName);
   }
 
-  /**
-   * TASK S3-CM-03: API CẬP NHẬT NỘI DUNG BÀI HỌC
-   * URL: PATCH /api/v1/courses/:id/lessons/:lessonId
-   */
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Get(':id/lessons/:lessonId')
+  async getLesson(@Param('lessonId') lessonId: string) {
+    return this.courseService.getLessonById(lessonId);
+  }
+
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Patch(':id/lessons/:lessonId')
   async updateLessonContent(
@@ -107,47 +118,6 @@ export class CourseController {
     return this.courseService.updateLessonContent(lessonId, dto);
   }
 
-  /**
-   * TASK S4-CM-01: API CẬP NHẬT LEARNING OUTCOMES
-   * URL: PATCH /api/v1/courses/:id/outcomes
-   */
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // (REUSE S1-CM-04 Guard)
-  @Patch(':id/outcomes')
-  async updateOutcomes(
-    @Param('id') courseId: string,
-    @Body() dto: UpdateOutcomesDto,
-  ) {
-    return this.courseService.updateOutcomes(courseId, dto);
-  }
-
-  /**
-   * TASK S4-CM-02: API GỬI KHÓA HỌC ĐỂ PHÊ DUYỆT
-   * URL: POST /api/v1/courses/:id/submit
-   */
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard) // (REUSE S1-CM-04: Đảm bảo chính chủ mới được gửi)
-  @Post(':id/submit')
-  async submitCourse(@Param('id') courseId: string) {
-    return this.courseService.submitCourse(courseId);
-  }
-  /**
-   * TASK S4-CM-03: API ADMIN PHÊ DUYỆT KHÓA HỌC
-   * URL: PATCH /api/v1/courses/:id/review
-   */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin' as UserRole) // Chỉ Admin mới có quyền truy cập route này
-  @Patch(':id/review')
-  async processReview(
-    @Param('id') courseId: string,
-    @Request() req,
-    @Body() dto: ProcessReviewDto,
-  ) {
-    const adminId = req.user.id;
-    return this.courseService.processReview(courseId, adminId, dto);
-  }
-  /**
-   * TASK S4-CM-05: API GẮN KEY CONCEPTS CHO BÀI HỌC
-   * URL: PATCH /api/v1/courses/:id/lessons/:lessonId/metadata
-   */
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Patch(':id/lessons/:lessonId/metadata')
   async updateMetadata(
@@ -156,14 +126,55 @@ export class CourseController {
   ) {
     return this.courseService.updateLessonMetadata(lessonId, dto);
   }
-  /**
-   * TASK S4-CM-06: API LẤY CHI TIẾT KHÓA HỌC DÀNH RIÊNG CHO ADMIN REVIEW
-   * URL: GET /api/v1/courses/:id/admin-detail
-   */
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Patch(':id/outcomes')
+  async updateOutcomes(
+    @Param('id') courseId: string,
+    @Body() dto: UpdateOutcomesDto,
+  ) {
+    return this.courseService.updateOutcomes(courseId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Post(':id/submit')
+  async submitCourse(@Param('id') courseId: string) {
+    return this.courseService.submitCourse(courseId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin' as UserRole)
+  @Patch(':id/review')
+  async processReview(
+    @Param('id') courseId: string,
+    @Request() req,
+    @Body() dto: ProcessReviewDto,
+  ) {
+    const adminId = req.user.sub;
+    return this.courseService.processReview(courseId, adminId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Get(':id/builder')
+  async getCourseBuilder(@Param('id') id: string) {
+    return this.courseService.getCourseDetailWithFullContent(id);
+  }
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Get(':id/sections')
+  async getSections(@Param('id') courseId: string) {
+    return this.courseService.getSections(courseId);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin' as UserRole)
   @Get(':id/admin-detail')
   async getAdminDetail(@Param('id') id: string) {
-    return this.courseService.getCourseDetailWithFullContent(id); // Hàm này fetch kèm Sections & Lessons
+    return this.courseService.getCourseDetailWithFullContent(id);
+  }
+
+  @Get(':id')
+  async findOnePublished(@Param('id') id: string) {
+    return this.courseService.findOnePublished(id);
   }
 }

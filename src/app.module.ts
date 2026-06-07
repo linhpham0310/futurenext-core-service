@@ -16,6 +16,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { LxModule } from './modules/lx/lx.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { CourseModule } from './modules/course/course.module';
 
 @Module({
   imports: [
@@ -135,6 +136,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     SharedModule,
     LxModule,
     PrismaModule,
+    CourseModule,
   ],
   controllers: [AppController], // Controller cho health check (nếu có)
   providers: [AppService], // Không dùng global guard cho Throttler

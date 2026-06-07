@@ -81,7 +81,7 @@ export class UsersAdminController {
     @Ip() ip: string,
   ) {
     // Lấy ID của Admin đang thực hiện request từ token (JwtStrategy đã đính kèm vào req.user)
-    const actionById = req.user.id;
+    const actionById = req.user.sub;
 
     // Gọi logic xử lý và ghi log đã viết ở S2-BE-05
     await this.usersService.updateRole(

@@ -30,7 +30,7 @@ export class TeacherProfilesController {
   @Post('submit')
   @HttpCode(HttpStatus.CREATED)
   async submitProfile(@Request() req, @Body() dto: SubmitTeacherProfileDto) {
-    const userId = req.user.id; // Lấy ID từ token đã được Guard giải mã
+    const userId = req.user.sub; // Lấy ID từ token đã được Guard giải mã
     const profile = await this.teacherProfilesService.submitProfile(
       userId,
       dto,
@@ -46,7 +46,7 @@ export class TeacherProfilesController {
   @Put('update')
   @HttpCode(HttpStatus.OK)
   async updateProfile(@Request() req, @Body() dto: UpdateTeacherProfileDto) {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const profile = await this.teacherProfilesService.updateProfile(
       userId,
       dto,
@@ -61,7 +61,7 @@ export class TeacherProfilesController {
   @Get('my-profile')
   @HttpCode(HttpStatus.OK)
   async getMyProfile(@Request() req) {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     const profile = await this.teacherProfilesService.findByUserId(userId);
     return {
       success: true,

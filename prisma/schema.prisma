@@ -7,7 +7,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")  
   schemas  = ["course_mgmt", "lx"]
-  extensions = [uuid_ossp, vector] 
+  //extensions = [uuid_ossp, vector] 
   directUrl = env("DIRECT_URL")  
 }
 
@@ -77,6 +77,8 @@ model Lesson {
   duration      Int?       @default(0)
   orderIndex    Int        @default(0)
   isFreePreview Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   // TASK S4-CM-05: Thêm cột metadata cho AI (JSONB)
   aiMetadata Json @default("[]")

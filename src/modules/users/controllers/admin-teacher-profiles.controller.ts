@@ -47,7 +47,7 @@ export class AdminTeacherProfilesController {
     @Param('id', ParseUUIDPipe) id: string, // Đảm bảo ID truyền vào là chuẩn UUID
     @Body() reviewDto: ReviewTeacherProfileDto,
   ) {
-    const adminId = req.user.id;
+    const adminId = req.user.sub;
 
     const profile = await this.teacherProfilesService.reviewProfile(
       adminId,

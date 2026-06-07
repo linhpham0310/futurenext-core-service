@@ -1,4 +1,3 @@
-import { SanitizeHtml } from '@/modules/common/decorators/sanitize-html.decorator';
 import {
   IsNotEmpty,
   IsString,
@@ -10,7 +9,6 @@ import {
 export class UpdateLessonContentDto {
   @IsString()
   @IsNotEmpty({ message: 'Nội dung bài học không được để trống' })
-  @SanitizeHtml()
   content: string; // Có thể là S3 Key hoặc chuỗi Markdown
 
   @IsNumber()

@@ -22,18 +22,7 @@ export class LxController {
   @UseGuards(JwtAuthGuard) // Chỉ cần đăng nhập, logic Entitlement đã nằm trong Service
   @Get('runtime/:courseId')
   async getRuntime(@Param('courseId') courseId: string, @Request() req) {
-    return this.lxService.getRuntimeOverview(courseId, req.user.id);
-  }
-
-  /**
-   * TASK LX-BE-1.4: API lấy chi tiết nội dung bài học
-   * URL: GET /api/v1/lx/lesson/:id
-   */
-  @UseGuards(JwtAuthGuard, CourseEntitlementGuard) // Bảo vệ 2 lớp: Login & Mua khóa học
-  @Get('lesson/:id')
-  async getLesson(@Param('id') id: string, @Request() req) {
-    const userId = req.user.id;
-    return this.lxService.getLessonDetail(id, userId);
+    return this.lxService.getRuntimeOverview(courseId, req.user.sub);
   }
 
   // ---------------------------------------------------------
@@ -42,7 +31,7 @@ export class LxController {
   @UseGuards(JwtAuthGuard, CourseEntitlementGuard)
   @Get('lesson/:id')
   async getLessonContent(@Param('id') id: string, @Request() req) {
-    return this.lxService.getLessonContent(id, req.user.id);
+    return this.lxService.getLessonContent(id, req.user.sub);
   }
 
   /**
@@ -52,7 +41,7 @@ export class LxController {
   @UseGuards(JwtAuthGuard)
   @Post('ai/test-log')
   async testAiLog(@Request() req, @Body() dto: LogAiInteractionDto) {
-    const userId = req.user.id;
+    const userId = req.user.sub;
     return this.lxService.logAiInteraction(userId, dto);
   }
 

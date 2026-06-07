@@ -12,19 +12,30 @@ import { CreateSectionDto } from './dto/create-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CreateLessonDto } from './dto/create-lesson.dto';
-import { S3Service } from '../common/s3.service';
 import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
 import { UpdateOutcomesDto } from './dto/update-outcomes.dto';
 import { ProcessReviewDto } from './dto/process-review.dto';
 import { CourseStatus } from '@prisma/client';
 import { UpdateLessonMetadataDto } from './dto/update-lesson-metadata.dto';
+import { createClient } from '@supabase/supabase-js';
+import { sanitize } from '../common/utils/sanitize';
+import ws from 'ws';
 
 @Injectable()
 export class CourseService {
+  private supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      realtime: {
+        transport: ws,
+      },
+    },
+  );
+
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2, // Inject EventEmitter2
-    private s3Service: S3Service, // Inject S3Service mới
   ) {}
 
   async createDraft(instructorId: string, dto: CreateCourseDto) {
@@ -111,7 +122,11 @@ export class CourseService {
     // 3. Tạo bài học mới
     return this.prisma.lesson.create({
       data: {
-        ...dto,
+        title: dto.title,
+        type: dto.type,
+        content: dto.content, // có thể undefined
+        duration: dto.duration,
+        isFreePreview: dto.isFreePreview || false,
         sectionId: sectionId,
         orderIndex: newOrderIndex,
         slug: slugify(dto.title, { lower: true }), // Tạo slug cho bài học
@@ -128,13 +143,17 @@ export class CourseService {
     // Cấu trúc này giúp quản lý file dễ dàng và tránh trùng tên
     const fileKey = `courses/${courseId}/${Date.now()}-${fileName}`;
     // 2. Gọi S3 Service để lấy URL
-    const uploadUrl = await this.s3Service.generatePresignedUrl(
-      fileKey,
-      fileType,
-    );
+    const { data, error } = await this.supabase.storage
+      .from('course-videos')
+      .createSignedUploadUrl(fileKey);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
     return {
-      uploadUrl,
-      fileKey, // Trả về key để Frontend sau đó gửi lại Backend lưu vào DB
+      uploadUrl: data.signedUrl,
+      fileKey,
     };
   }
   /**
@@ -290,16 +309,80 @@ export class CourseService {
     });
   }
 
-  async getCourseDetailWithFullContent(id: string) {
-    return this.prisma.course.findUnique({
-      where: { id },
+  async findAllPublished(query: any) {
+    return this.prisma.course.findMany({
+      where: {
+        status: CourseStatus.PUBLISHED,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async findOnePublished(id: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id, status: CourseStatus.PUBLISHED },
       include: {
         sections: {
-          include: {
-            lessons: true,
-          },
+          include: { lessons: true },
         },
       },
     });
+    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
+    return course;
+  }
+
+  async getMyCourses(userId: string) {
+    return this.prisma.course.findMany({
+      where: { instructorId: userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getCourseDetailWithFullContent(id: string) {
+    console.log('Fetching course:', id);
+    const course = await this.prisma.course.findUnique({
+      where: { id },
+      include: { sections: { include: { lessons: true } } },
+    });
+    console.log('Course found:', course);
+    if (!course) throw new NotFoundException('Course not found');
+    return course;
+  }
+
+  async getSections(courseId: string) {
+    return this.prisma.section.findMany({
+      where: { courseId },
+      orderBy: { orderIndex: 'asc' },
+      include: { lessons: { orderBy: { orderIndex: 'asc' } } },
+    });
+  }
+
+  async updateSection(sectionId: string, dto: { title: string }) {
+    return this.prisma.section.update({
+      where: { id: sectionId },
+      data: { title: dto.title },
+    });
+  }
+
+  async getSectionsWithLessons(courseId: string) {
+    return this.prisma.section.findMany({
+      where: { courseId },
+      orderBy: { orderIndex: 'asc' },
+      include: {
+        lessons: {
+          orderBy: { orderIndex: 'asc' },
+        },
+      },
+    });
+  }
+
+  async getLessonById(lessonId: string) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    return lesson;
   }
 }
