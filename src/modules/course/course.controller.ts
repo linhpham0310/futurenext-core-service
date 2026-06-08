@@ -52,12 +52,6 @@ export class CourseController {
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
-  @Patch(':id')
-  async updateCourse(@Param('id') id: string, @Body() updateData: any) {
-    return this.courseService.update(id, updateData);
-  }
-
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Post(':id/sections')
   async addSection(
     @Param('id') courseId: string,
@@ -67,21 +61,21 @@ export class CourseController {
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
-  @Patch(':id/sections/reorder')
-  async reorderSections(
-    @Param('id') courseId: string,
-    @Body() dto: ReorderSectionsDto,
-  ) {
-    return this.courseService.reorderSections(courseId, dto);
-  }
-
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Patch(':id/sections/:sectionId')
   async updateSection(
     @Param('sectionId') sectionId: string,
     @Body() dto: { title: string },
   ) {
     return this.courseService.updateSection(sectionId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Patch(':id/sections/reorder')
+  async reorderSections(
+    @Param('id') courseId: string,
+    @Body() dto: ReorderSectionsDto,
+  ) {
+    return this.courseService.reorderSections(courseId, dto);
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
@@ -155,6 +149,12 @@ export class CourseController {
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Patch(':id')
+  async updateCourse(@Param('id') id: string, @Body() updateData: any) {
+    return this.courseService.update(id, updateData);
+  }
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Get(':id/builder')
   async getCourseBuilder(@Param('id') id: string) {
     return this.courseService.getCourseDetailWithFullContent(id);
@@ -176,5 +176,75 @@ export class CourseController {
   @Get(':id')
   async findOnePublished(@Param('id') id: string) {
     return this.courseService.findOnePublished(id);
+  }
+
+  @Get('public')
+  async findAllPublic(@Query() query: any) {
+    return this.courseService.findAllPublished(query);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT)
+  @Get('my-enrolled')
+  async getMyEnrolledCourses(@Request() req) {
+    return this.courseService.getEnrolledCourses(req.user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT)
+  @Post(':id/enroll')
+  async enrollCourse(@Param('id') courseId: string, @Request() req) {
+    return this.courseService.enrollCourse(req.user.sub, courseId);
+  }
+
+  @Get('public')
+  async getPublicCourses(@Query() query: any) {
+    return this.courseService.findAllPublished(query);
+  }
+
+  @Get('public/:id')
+  async getPublicCourseDetail(@Param('id') id: string, @Request() req) {
+    const userId = req.user?.sub; // có thể undefined
+    return this.courseService.findOnePublishedWithEnrollmentStatus(id, userId);
+  }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.TEACHER)
+  @Get('teacher/students')
+  async getTeacherStudents(@Query() query: any, @Request() req) {
+    return this.courseService.getTeacherStudents(req.user.sub, query);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.TEACHER)
+  @Get('teacher/courses/:courseId/students')
+  async getCourseStudents(@Param('courseId') courseId: string, @Request() req) {
+    return this.courseService.getCourseStudents(req.user.sub, courseId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.TEACHER)
+  @Get('teacher/dashboard/stats')
+  async getTeacherDashboardStats(@Request() req) {
+    const teacherId = req.user.sub;
+    const totalCourses = await this.prisma.course.count({
+      where: { instructorId: teacherId },
+    });
+    const totalStudents = await this.prisma.purchase.count({
+      where: { course: { instructorId: teacherId }, status: 'COMPLETED' },
+      distinct: ['userId'],
+    });
+    const totalRevenue = await this.prisma.purchase.aggregate({
+      _sum: { amount: true },
+      where: { course: { instructorId: teacherId }, status: 'COMPLETED' },
+    });
+    const totalCertificates = await this.prisma.certificate.count({
+      where: { course: { instructorId: teacherId } },
+    });
+    return {
+      totalCourses,
+      totalStudents,
+      totalRevenue: totalRevenue._sum.amount || 0,
+      totalCertificates,
+    };
   }
 }

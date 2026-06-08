@@ -7,14 +7,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { EmailService } from './services/email.service';
 import { UserRegisteredListener } from './listeners/user-registered.listener';
-//  AuthListener nên ở trong AuthModule, không nên import ở đây
-// import { AuthListener } from '../auth/listeners/auth.listener';
+import { NotificationController } from './notification.controller';
+import { NotificationService } from './notification.service';
+import { PrismaModule } from '../../../prisma/prisma.module'; // import { AuthListener } from '../auth/listeners/auth.listener';
 import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
     ConfigModule,
     UsersModule,
+    PrismaModule,
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -52,6 +54,8 @@ import { UsersModule } from '../users/users.module';
       },
     }),
   ],
+  controllers: [NotificationController],
+
   providers: [
     EmailService,
     UserRegisteredListener,

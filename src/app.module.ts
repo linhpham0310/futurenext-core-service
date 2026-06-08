@@ -17,7 +17,14 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { LxModule } from './modules/lx/lx.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CourseModule } from './modules/course/course.module';
-
+import { ReportModule } from './modules/report/report.module';
+import { TeacherPaymentModule } from './modules/teacher-payment/teacher-payment.module';
+import { AnnouncementModule } from './modules/announcement/announcement.module';
+import { CertificateModule } from './modules/certificate/certificate.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ExamModule } from './modules/exam/exam.module';
+import { RevenueModule } from './modules/revenue/revenue.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 @Module({
   imports: [
     // --- 1. ConfigModule: Đọc biến môi trường (.env / system) ---
@@ -137,6 +144,15 @@ import { CourseModule } from './modules/course/course.module';
     LxModule,
     PrismaModule,
     CourseModule,
+    LxModule,
+    ExamModule,
+    RevenueModule,
+    DashboardModule,
+    NotificationsModule,
+    CertificateModule,
+    ReportModule,
+    TeacherPaymentModule,
+    AnnouncementModule,
   ],
   controllers: [AppController], // Controller cho health check (nếu có)
   providers: [AppService], // Không dùng global guard cho Throttler

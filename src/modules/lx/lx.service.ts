@@ -6,6 +6,8 @@ import {
 import { PrismaService } from 'prisma/prisma.service';
 import { LogAiInteractionDto } from './dto/log-ai-interaction.dto';
 import { IngestLessonContextDto } from './dto/ingest-lesson-context.dto';
+import { AiAskDto } from './dto/ai-ask.dto';
+import { UpdateProgressDto } from './dto/update-progress.dto';
 
 @Injectable()
 export class LxService {
@@ -246,5 +248,109 @@ export class LxService {
         metadata: true,
       },
     });
+  }
+
+  async submitExam(userId: string, examId: string, dto: SubmitExamDto) {
+    const exam = await this.prisma.exam.findUnique({
+      where: { id: examId },
+      include: { questions: true },
+    });
+    if (!exam) throw new NotFoundException('Exam not found');
+
+    // Kiểm tra student có được gán exam này không (thông qua course)
+    const enrollment = await this.prisma.purchase.findFirst({
+      where: { userId, courseId: exam.courseId },
+    });
+    if (!enrollment)
+      throw new ForbiddenException('Bạn không có quyền làm bài thi này');
+
+    let score = 0;
+    const details = [];
+    for (const q of exam.questions) {
+      const userAnswer = dto.answers[q.id];
+      let isCorrect = false;
+      if (q.type === 'MCQ' && userAnswer === q.correctAnswer) {
+        isCorrect = true;
+        score += 1;
+      }
+      details.push({
+        questionId: q.id,
+        questionText: q.text,
+        userAnswer,
+        correctAnswer: q.correctAnswer,
+        isCorrect: q.type === 'MCQ' ? isCorrect : null,
+      });
+    }
+
+    const result = await this.prisma.examResult.create({
+      data: {
+        examId,
+        userId,
+        score: exam.type === 'ESSAY' ? null : score,
+        totalQuestions: exam.questions.length,
+        answers: dto.answers,
+        submittedAt: new Date(),
+      },
+    });
+    return { result, details };
+  }
+  // src/modules/lx/lx.service.ts
+  async updateProgress(
+    userId: string,
+    lessonId: string,
+    dto: UpdateProgressDto,
+  ) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    const purchase = await this.prisma.purchase.findFirst({
+      where: { userId, courseId: lesson.courseId, status: 'COMPLETED' },
+    });
+    if (!purchase)
+      throw new ForbiddenException('Bạn chưa đăng ký khóa học này');
+    const progress = await this.prisma.learningProgress.upsert({
+      where: { userId_lessonId: { userId, lessonId } },
+      update: {
+        status: dto.status,
+        lastPosition: dto.lastPosition,
+        completedAt: dto.status === 'COMPLETED' ? new Date() : undefined,
+      },
+      create: {
+        userId,
+        lessonId,
+        courseId: lesson.courseId,
+        status: dto.status,
+        lastPosition: dto.lastPosition || 0,
+      },
+    });
+    return progress;
+  }
+
+  async askAi(userId: string, dto: AiAskDto) {
+    let context = '';
+    if (dto.lessonId) {
+      const lesson = await this.prisma.lesson.findUnique({
+        where: { id: dto.lessonId },
+        select: { title: true, content: true, aiMetadata: true },
+      });
+      if (lesson) {
+        context = `Bài học: ${lesson.title}\nNội dung: ${lesson.content?.substring(0, 500)}...\nMetadata: ${JSON.stringify(lesson.aiMetadata)}`;
+      }
+    }
+    // TODO: Gọi AI service (OpenAI, Gemini, ...)
+    const mockAnswer = `[AI] Bạn hỏi: "${dto.question}". Đây là câu trả lời mẫu. Hãy tích hợp AI thật.`;
+    // Ghi log interaction
+    await this.prisma.aIInteraction.create({
+      data: {
+        userId,
+        lessonId: dto.lessonId,
+        interactionType: 'CHAT',
+        prompt: dto.question,
+        response: mockAnswer,
+        contextSnapshot: { context },
+      },
+    });
+    return { answer: mockAnswer };
   }
 }

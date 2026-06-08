@@ -37,6 +37,8 @@ import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { DataSource } from 'typeorm';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { UsersService } from '@/modules/users/services/users.service';
+import { ChangePasswordDto } from '../dto/change-password.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
@@ -1148,5 +1150,20 @@ export class AuthService {
           'Mật khẩu đã được thay đổi và các phiên đăng nhập cũ bị thu hồi',
       },
     });
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    const isMatch = await bcrypt.compare(
+      dto.currentPassword,
+      user.passwordHash,
+    );
+    if (!isMatch) throw new BadRequestException('Mật khẩu hiện tại không đúng');
+
+    const hashed = await bcrypt.hash(dto.newPassword, 10);
+    await this.usersService.updatePassword(userId, hashed);
+    return { message: 'Đổi mật khẩu thành công' };
   }
 }

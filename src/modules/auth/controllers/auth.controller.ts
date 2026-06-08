@@ -11,11 +11,13 @@ import {
   Logger,
   UseGuards,
   UnauthorizedException,
+  Patch,
+  Request,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from '../services/auth.service';
 import { RegisterDto } from '../dto/register.dto';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { LoginDto } from '../dto/login.dto';
 import { ConfigService } from '@nestjs/config';
@@ -27,6 +29,7 @@ import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { ApiOperation } from '@nestjs/swagger';
+import { ChangePasswordDto } from '../dto/change-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -202,5 +205,11 @@ export class AuthController {
       message:
         'Mật khẩu của bạn đã được cập nhật thành công. Vui lòng đăng nhập lại.',
     };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('change-password')
+  async changePassword(@Request() req, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(req.user.sub, dto);
   }
 }

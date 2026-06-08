@@ -18,6 +18,7 @@ import {
 
 // Import JwtAuthGuard (Điều chỉnh đường dẫn theo dự án của bạn)
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { TeacherProfileStatus } from '../entities/teacher-profile.entity';
 // Nếu bạn đã làm RolesGuard ở Sprint 1, có thể uncomment:
 // import { RolesGuard } from '../../auth/guards/roles.guard';
 // import { Roles } from '../../auth/decorators/roles.decorator';
@@ -41,27 +42,24 @@ export class AdminTeacherProfilesController {
     };
   }
 
-  @Patch(':id/review')
-  async reviewProfile(
-    @Request() req,
-    @Param('id', ParseUUIDPipe) id: string, // Đảm bảo ID truyền vào là chuẩn UUID
-    @Body() reviewDto: ReviewTeacherProfileDto,
-  ) {
-    const adminId = req.user.sub;
-
-    const profile = await this.teacherProfilesService.reviewProfile(
-      adminId,
-      id,
-      reviewDto,
-    );
-    return {
-      success: true,
-      message: `Đã xử lý hồ sơ thành công. Trạng thái: ${profile.status}`,
-      data: {
-        id: profile.id,
-        status: profile.status,
-        updated_at: profile.updatedAt,
-      },
-    };
+  @Patch(':id/approve')
+  async approveProfile(@Param('id') id: string, @Request() req) {
+    return this.teacherProfilesService.reviewProfile(req.user.sub, id, {
+      status: TeacherProfileStatus.APPROVED,
+    });
   }
+
+  @Patch(':id/reject')
+  async rejectProfile(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @Request() req,
+  ) {
+    // Có thể lưu reason vào DB nếu cần
+    return this.teacherProfilesService.reviewProfile(req.user.sub, id, {
+      status: TeacherProfileStatus.REJECTED,
+      reason,
+    });
+  }
+  s;
 }

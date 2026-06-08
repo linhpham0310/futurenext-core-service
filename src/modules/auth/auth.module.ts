@@ -61,6 +61,11 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
         };
       },
     }),
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+      signOptions: { expiresIn: '1d' },
+    }),
+
     EventEmitterModule.forRoot(),
     // Import EventEmitterModule nếu nó chưa được set global trong AppModule
     // EventEmitterModule,

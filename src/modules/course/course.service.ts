@@ -1,6 +1,7 @@
 // src/modules/course/course.service.ts
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import { UpdateLessonMetadataDto } from './dto/update-lesson-metadata.dto';
 import { createClient } from '@supabase/supabase-js';
 import { sanitize } from '../common/utils/sanitize';
 import ws from 'ws';
+import { UpdateCourseDto } from './dto/update-course.dto';
 
 @Injectable()
 export class CourseService {
@@ -384,5 +386,200 @@ export class CourseService {
     });
     if (!lesson) throw new NotFoundException('Lesson not found');
     return lesson;
+  }
+
+  async findAllForAdmin(query: any) {
+    const { page = 1, limit = 10, status, q } = query;
+    const skip = (page - 1) * limit;
+    const where: any = {};
+    if (status) where.status = status;
+    if (q) {
+      where.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        { instructor: { fullName: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+    const [items, total] = await this.prisma.course.findManyAndCount({
+      where,
+      include: {
+        instructor: {
+          select: { id: true, fullName: true, email: true },
+        },
+        _count: {
+          select: { sections: true, enrollments: true },
+        },
+      },
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
+    // Transform revenue (giả sử revenue tính từ enrollments * price)
+    const transformed = items.map((course) => ({
+      ...course,
+      revenue: course._count.enrollments * course.price,
+      students: course._count.enrollments,
+    }));
+    return {
+      data: transformed,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async updateCourse(id: string, dto: UpdateCourseDto) {
+    return this.prisma.course.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async deleteCourse(id: string) {
+    // Kiểm tra có khóa học không
+    const course = await this.prisma.course.findUnique({ where: { id } });
+    if (!course) throw new NotFoundException('Khóa học không tồn tại');
+    // Xóa các liên quan? Có thể xóa mềm hoặc hard delete tùy nghiệp vụ
+    return this.prisma.course.delete({ where: { id } });
+  }
+
+  async getEnrolledCourses(userId: string) {
+    const enrollments = await this.prisma.purchase.findMany({
+      where: { userId, status: 'COMPLETED' },
+      include: {
+        course: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            thumbnailUrl: true,
+          },
+        },
+      },
+      orderBy: { purchasedAt: 'desc' },
+    });
+    // Tính progress? Có thể tính từ learning_progress
+    return enrollments.map((e) => ({
+      id: e.course.id,
+      title: e.course.title,
+      description: e.course.description,
+      thumbnail: e.course.thumbnailUrl,
+      progress: 0, // sẽ tính sau
+    }));
+  }
+
+  async enrollCourse(userId: string, courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId, status: 'PUBLISHED' },
+    });
+    if (!course)
+      throw new NotFoundException(
+        'Khóa học không tồn tại hoặc chưa được xuất bản',
+      );
+    const existing = await this.prisma.purchase.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+    });
+    if (existing)
+      throw new BadRequestException('Bạn đã đăng ký khóa học này rồi');
+    // TODO: Xử lý thanh toán
+    return this.prisma.purchase.create({
+      data: {
+        userId,
+        courseId,
+        amount: course.price,
+        status: 'COMPLETED', // tạm thời bỏ qua thanh toán
+        purchasedAt: new Date(),
+      },
+    });
+  }
+
+  async findOnePublishedWithEnrollmentStatus(id: string, userId?: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id, status: 'PUBLISHED' },
+      include: {
+        sections: {
+          include: { lessons: true },
+          orderBy: { orderIndex: 'asc' },
+        },
+      },
+    });
+    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
+    let isEnrolled = false;
+    if (userId) {
+      const enrollment = await this.prisma.purchase.findUnique({
+        where: { userId_courseId: { userId, courseId: id } },
+      });
+      isEnrolled = !!enrollment;
+    }
+    return { ...course, isEnrolled };
+  }
+  async getTeacherStudents(teacherId: string, query: any) {
+    const { q, page = 1, limit = 10 } = query;
+    const skip = (page - 1) * limit;
+    // Lấy danh sách học viên đã đăng ký các khóa học của teacher
+    const courses = await this.prisma.course.findMany({
+      where: { instructorId: teacherId },
+      select: { id: true },
+    });
+    const courseIds = courses.map((c) => c.id);
+    const where: any = {
+      courseId: { in: courseIds },
+    };
+    if (q) {
+      where.user = {
+        OR: [
+          { fullName: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ],
+      };
+    }
+    const [items, total] = await this.prisma.purchase.findManyAndCount({
+      where,
+      include: {
+        user: {
+          select: { id: true, fullName: true, email: true },
+        },
+        course: {
+          select: { title: true },
+        },
+      },
+      skip,
+      take: limit,
+      distinct: ['userId'], // mỗi học viên chỉ một lần
+    });
+    const transformed = items.map((p) => ({
+      id: p.user.id,
+      fullName: p.user.fullName,
+      email: p.user.email,
+      enrolledCourse: p.course.title,
+      progress: 0, // có thể tính sau
+      joinedAt: p.purchasedAt,
+    }));
+    return {
+      data: transformed,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getCourseStudents(teacherId: string, courseId: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id: courseId, instructorId: teacherId },
+    });
+    if (!course)
+      throw new ForbiddenException('Bạn không phải chủ sở hữu khóa học này');
+    const enrollments = await this.prisma.purchase.findMany({
+      where: { courseId, status: 'COMPLETED' },
+      include: {
+        user: {
+          select: { id: true, fullName: true, email: true },
+        },
+      },
+      orderBy: { purchasedAt: 'desc' },
+    });
+    return enrollments.map((e) => ({
+      id: e.user.id,
+      fullName: e.user.fullName,
+      email: e.user.email,
+      progress: 0,
+      joinedAt: e.purchasedAt,
+      lastActiveAt: null,
+    }));
   }
 }

@@ -16,6 +16,8 @@ import { UsersAdminController } from './users-admin.controller';
 import { TeacherProfilesController } from './controllers/teacher-profiles.controller';
 import { TeacherProfilesService } from './services/teacher-profiles.service';
 import { AdminTeacherProfilesController } from './controllers/admin-teacher-profiles.controller';
+// src/modules/user/user.module.ts
+import { PrismaModule } from '../../../prisma/prisma.module';
 
 @Module({
   imports: [
@@ -24,11 +26,12 @@ import { AdminTeacherProfilesController } from './controllers/admin-teacher-prof
       UserCredential,
       UserConsent,
       TeacherProfile,
+      PrismaModule,
     ]),
   ],
   controllers: [
     UsersController,
-    // UsersAdminController,
+    UsersAdminController,
     TeacherProfilesController,
     AdminTeacherProfilesController,
   ],

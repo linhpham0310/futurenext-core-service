@@ -6,10 +6,12 @@ import { CourseOwnershipGuard } from './guards/course-ownership.guard';
 import { CourseEventListener } from './listeners/course-event.listener';
 import { CacheManagerListener } from './listeners/cache-manager.listener'; // (NEW - S4-CM-04)
 import { SupabaseStorageModule } from '../storage/supabase-storage.module';
+import { PrismaModule } from '../../../prisma/prisma.module';
+import { AdminCourseController } from './dto/admin-course.controller';
 
 @Module({
-  imports: [SupabaseStorageModule],
-  controllers: [CourseController],
+  imports: [SupabaseStorageModule, PrismaModule],
+  controllers: [CourseController, AdminCourseController],
   providers: [
     CourseService,
     PrismaService,
@@ -17,5 +19,6 @@ import { SupabaseStorageModule } from '../storage/supabase-storage.module';
     CourseEventListener,
     CacheManagerListener,
   ],
+  exports: [CourseService],
 })
 export class CourseModule {}

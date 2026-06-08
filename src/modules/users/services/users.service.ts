@@ -19,6 +19,9 @@ import {
 } from '@/shared/providers/audit/audit.service'; // Import AuditService
 import { UserRole, UserStatus } from '@/modules/users/entities/user.entity';
 import { UserQueryDto } from '../dto/user-query.dto';
+import { PrismaService } from 'prisma/prisma.service';
+import { UpdateUserDto } from '../dto/update-user.dto';
+import { UpdateUserFullDto } from '../dto/update-user-full.dto';
 
 @Injectable()
 export class UsersService {
@@ -32,6 +35,7 @@ export class UsersService {
     private readonly userRepository: Repository<User>, // ✅ ĐÚNG CHỖ
 
     private readonly auditService: AuditService,
+    private prisma: PrismaService,
   ) {}
   /**
    * Finds and returns public profile information for a given user ID.
@@ -303,6 +307,122 @@ export class UsersService {
         newRole: newRole,
         message: `Admin đã thay đổi quyền từ ${oldRole} sang ${newRole}`,
       },
+    });
+  }
+
+  async findStudents(query: UserQueryDto) {
+    return this.findAll({ ...query, role: UserRole.STUDENT });
+  }
+
+  async findStudentDetail(id: string) {
+    const user = await this.userRepository.findOne({
+      where: { id, role: UserRole.STUDENT },
+      select: ['id', 'fullName', 'email', 'phone', 'status', 'createdAt'],
+    });
+    if (!user) throw new NotFoundException('Học viên không tồn tại');
+    const coursesEnrolled = await this.prisma.purchase.count({
+      where: { userId: id, status: 'COMPLETED' },
+    });
+    return { ...user, coursesEnrolled };
+  }
+
+  async updateStudentStatus(
+    id: string,
+    status: UserStatus.ACTIVE | UserStatus.LOCKED,
+    actionById: string,
+    ip: string,
+  ) {
+    const user = await this.userRepository.findOne({
+      where: { id, role: UserRole.STUDENT },
+    });
+    if (!user) throw new NotFoundException('Học viên không tồn tại');
+    user.status = status;
+    await this.userRepository.save(user);
+    await this.auditService.log({
+      action: 'ADMIN_UPDATED_STUDENT_STATUS',
+      actorId: actionById,
+      targetId: id,
+      ip,
+      details: { status },
+    });
+    return user;
+  }
+
+  async updateUserPartial(
+    targetUserId: string,
+    dto: UpdateUserDto,
+    actionById: string,
+    ip: string,
+  ): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id: targetUserId },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (dto.role !== undefined) {
+      await this.updateRole(targetUserId, dto.role, actionById, ip);
+    }
+    if (dto.status !== undefined) {
+      user.status = dto.status;
+      await this.userRepository.save(user);
+      await this.auditService.log({
+        action: 'ADMIN_UPDATED_USER_STATUS',
+        actorId: actionById,
+        targetId: targetUserId,
+        ip,
+        details: { oldStatus: user.status, newStatus: dto.status },
+      });
+    }
+    return user;
+  }
+
+  async updateUserFull(
+    targetUserId: string,
+    dto: UpdateUserFullDto,
+    actionById: string,
+    ip: string,
+  ): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id: targetUserId },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    const oldRole = user.role;
+    const oldStatus = user.status;
+    Object.assign(user, dto);
+    await this.userRepository.save(user);
+    await this.auditService.log({
+      action: 'ADMIN_UPDATED_USER_FULL',
+      actorId: actionById,
+      targetId: targetUserId,
+      ip,
+      details: { oldRole, newRole: dto.role, oldStatus, newStatus: dto.status },
+    });
+    return user;
+  }
+
+  async deleteUser(
+    targetUserId: string,
+    actionById: string,
+    ip: string,
+  ): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { id: targetUserId },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === UserRole.ADMIN) {
+      const activeAdminsCount = await this.userRepository.count({
+        where: { role: UserRole.ADMIN, status: UserStatus.ACTIVE },
+      });
+      if (activeAdminsCount <= 1) {
+        throw new BadRequestException('Không thể xóa admin duy nhất còn lại.');
+      }
+    }
+    await this.userRepository.softDelete(targetUserId); // hoặc hard delete
+    await this.auditService.log({
+      action: 'ADMIN_DELETED_USER',
+      actorId: actionById,
+      targetId: targetUserId,
+      ip,
+      details: { deletedUser: user.email },
     });
   }
 }

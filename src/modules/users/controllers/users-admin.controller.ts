@@ -10,6 +10,9 @@ import {
   Req,
   HttpCode,
   HttpStatus,
+  Patch,
+  Delete,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,6 +30,9 @@ import { UpdateRoleDto } from './dto/update-role.dto'; // Từ Task S2-BE-05
 import { RolesGuard } from '@/shared/guards/roles.guard';
 import { Roles } from '@/shared/decorators/roles.decorator';
 import { UsersService } from './services/users.service';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserFullDto } from './dto/update-user-full.dto';
+import { UpdateStudentStatusDto } from './dto/update-student-status.dto';
 
 /**
  * [Task: S2-BE-06] Triển khai Users Admin Controller
@@ -94,5 +100,83 @@ export class UsersAdminController {
     return {
       message: 'Cập nhật vai trò người dùng thành công.',
     };
+  }
+
+  @Get(':id')
+  async getUserById(@Param('id') id: string) {
+    return this.usersService.findProfileById(id);
+  }
+
+  @Patch(':id')
+  async updateUser(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @Req() req,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.updateUserPartial(id, dto, req.user.sub, ip);
+  }
+
+  @Put(':id')
+  async updateUserFull(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserFullDto,
+    @Req() req,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.updateUserFull(id, dto, req.user.sub, ip);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteUser(@Param('id') id: string, @Req() req, @Ip() ip: string) {
+    await this.usersService.deleteUser(id, req.user.sub, ip);
+  }
+
+  // Student management
+  @Get('students')
+  async getStudents(@Query() query: UserQueryDto) {
+    return this.usersService.findStudents(query);
+  }
+
+  @Get('students/:id')
+  async getStudentById(@Param('id') id: string) {
+    return this.usersService.findStudentDetail(id);
+  }
+
+  @Patch('students/:id/status')
+  async updateStudentStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateStudentStatusDto,
+    @Req() req,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.updateStudentStatus(
+      id,
+      dto.status,
+      req.user.sub,
+      ip,
+    );
+  }
+
+  @Put('students/:id')
+  async updateStudent(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserFullDto,
+    @Req() req,
+    @Ip() ip: string,
+  ) {
+    // Chỉ cho phép update student role? Có thể giữ nguyên role STUDENT
+    if (dto.role && dto.role !== UserRole.STUDENT) {
+      throw new BadRequestException(
+        'Không thể đổi role của học viên qua endpoint này',
+      );
+    }
+    return this.usersService.updateUserFull(id, dto, req.user.sub, ip);
+  }
+
+  @Delete('students/:id')
+  async deleteStudent(@Param('id') id: string, @Req() req, @Ip() ip: string) {
+    await this.usersService.deleteUser(id, req.user.sub, ip);
   }
 }
