@@ -11,6 +11,7 @@ export enum LessonType {
   VIDEO = 'VIDEO',
   ARTICLE = 'ARTICLE',
   QUIZ = 'QUIZ',
+  LAB = 'LAB',
 }
 
 export class CreateLessonDto {

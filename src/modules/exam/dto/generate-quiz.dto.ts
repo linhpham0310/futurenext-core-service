@@ -1,19 +1,22 @@
-import { IsString, IsNotEmpty, IsEnum, IsNumber, Min } from 'class-validator';
-import { ExamType } from './create-exam.dto';
+// src/modules/exam/dto/generate-quiz.dto.ts
+import { IsString, IsNotEmpty, IsInt, Min, Max, IsEnum } from 'class-validator';
+
+export enum Difficulty {
+  EASY = 'easy',
+  MEDIUM = 'medium',
+  HARD = 'hard',
+}
 
 export class GenerateQuizDto {
   @IsString()
   @IsNotEmpty()
-  topic: string;
+  content: string;
 
-  @IsEnum(ExamType)
-  type: ExamType;
-
-  @IsNumber()
+  @IsInt()
   @Min(1)
-  duration: number;
-
-  @IsNumber()
-  @Min(1)
+  @Max(50)
   numQuestions: number;
+
+  @IsEnum(Difficulty)
+  difficulty: Difficulty;
 }

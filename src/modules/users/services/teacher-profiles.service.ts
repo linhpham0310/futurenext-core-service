@@ -88,35 +88,6 @@ export class TeacherProfilesService {
     return saved;
   }
 
-  // [Task: S3-BE-01] Logic cập nhật hồ sơ
-  async updateProfile(
-    userId: string,
-    dto: UpdateTeacherProfileDto,
-  ): Promise<TeacherProfile> {
-    const profile = await this.teacherProfileRepo.findOne({
-      where: { userId: userId },
-    });
-    if (!profile) {
-      throw new NotFoundException(
-        'Không tìm thấy hồ sơ giáo viên để cập nhật. Vui lòng nộp mới trước.',
-      );
-    }
-
-    // Business Rule: Chỉ cho phép sửa hồ sơ khi đang chờ duyệt
-    if (profile.status !== 'pending_review') {
-      throw new BadRequestException(
-        'Chỉ có thể cập nhật hồ sơ khi đang ở trạng thái chờ duyệt (PENDING).',
-      );
-    }
-
-    if (dto.expertise !== undefined) {
-      dto.expertise = Array.isArray(dto.expertise) ? dto.expertise : [];
-    }
-
-    // Merge dữ liệu mới vào dữ liệu cũ
-    const updatedProfile = this.teacherProfileRepo.merge(profile, dto);
-    return await this.teacherProfileRepo.save(updatedProfile);
-  }
   // =========================================================================
   // [Task: S3-BE-02] LOGIC DÀNH CHO ADMIN
   // =========================================================================
@@ -235,14 +206,6 @@ export class TeacherProfilesService {
     }
   }
 
-  // [Task: S3-BE-01] Tìm profile theo userId
-  async findByUserId(userId: string): Promise<TeacherProfile | null> {
-    return this.teacherProfileRepo.findOne({
-      where: { userId },
-      relations: ['user'], // Lấy thêm thông tin user nếu cần
-    });
-  }
-
   // [Task: S3-BE-01] Lấy profile của user hiện tại (kèm user info)
   async getMyProfile(userId: string) {
     const profile = await this.teacherProfileRepo.findOne({
@@ -265,9 +228,40 @@ export class TeacherProfilesService {
     });
 
     if (!profile) {
-      return null; // Chưa nộp hồ sơ
+      return null;
     }
 
     return profile;
+  }
+
+  async findByUserId(userId: string) {
+    return this.teacherProfileRepo.findOne({
+      where: { userId },
+      relations: ['user'],
+      select: {
+        id: true,
+        bio: true,
+        expertise: true,
+        status: true,
+        rejectionReason: true,
+        createdAt: true,
+        updatedAt: true,
+        user: { id: true, fullName: true, email: true, avatarUrl: true },
+      },
+    });
+  }
+
+  async updateProfile(userId: string, dto: UpdateTeacherProfileDto) {
+    let profile = await this.teacherProfileRepo.findOne({ where: { userId } });
+    if (!profile)
+      throw new NotFoundException('Hồ sơ chưa được tạo, vui lòng nộp mới');
+    if (profile.status !== TeacherProfileStatus.PENDING_REVIEW) {
+      throw new BadRequestException(
+        'Chỉ có thể cập nhật khi hồ sơ đang chờ duyệt',
+      );
+    }
+    if (dto.bio !== undefined) profile.bio = dto.bio;
+    if (dto.expertise !== undefined) profile.expertise = dto.expertise;
+    return this.teacherProfileRepo.save(profile);
   }
 }

@@ -5,8 +5,7 @@ import {
   IsOptional,
   IsObject,
 } from 'class-validator';
-// --- TASK: LX-AI-1.1 (SPRINT 1) ---
-// Định nghĩa enum các loại hình tương tác theo tài liệu LLD trang 2
+
 export enum EInteractionType {
   CHAT = 'CHAT',
   LAB_COACH = 'LAB_COACH',

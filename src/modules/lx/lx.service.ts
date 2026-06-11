@@ -8,6 +8,7 @@ import { LogAiInteractionDto } from './dto/log-ai-interaction.dto';
 import { IngestLessonContextDto } from './dto/ingest-lesson-context.dto';
 import { AiAskDto } from './dto/ai-ask.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
+import { SubmitExamDto } from './dto/submit-exam.dto';
 
 @Injectable()
 export class LxService {
@@ -66,129 +67,6 @@ export class LxService {
     return {
       ...lesson,
       userProgress: progress || { status: 'NOT_STARTED', lastPosition: 0 },
-    };
-  }
-
-  /**
-   * TASK LX-BE-1.3: Lấy cấu trúc khóa học và tiến độ học viên
-   */
-  async getRuntimeOverview(courseId: string, userId: string) {
-    // 1. Kiểm tra quyền sở hữu khóa học (Entitlement Check)
-    const purchase = await this.prisma.purchase.findUnique({
-      where: {
-        userId_courseId: { userId, courseId },
-      },
-    });
-    if (!purchase) {
-      throw new ForbiddenException('Bạn không có quyền truy cập ');
-    }
-
-    // ---------------------------------------------------------
-    // TASK: LX-BE-1.5: Tự động khởi tạo nếu chưa đủ
-    // ---------------------------------------------------------
-    await this.ensureProgressInitialized(courseId, userId);
-
-    // 2. Lấy toàn bộ cấu trúc khóa học (Sections & Lessons)
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-      include: {
-        sections: {
-          orderBy: { orderIndex: 'asc' },
-          include: {
-            lessons: {
-              orderBy: { orderIndex: 'asc' },
-              select: {
-                id: true,
-                title: true,
-                type: true,
-                isFreePreview: true,
-                orderIndex: true,
-                // Không lấy field 'content' ở đây để tối ưu tốc độ tải danh sách
-              },
-            },
-          },
-        },
-      },
-    });
-    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
-    // 3. Lấy danh sách tiến độ của User trong khóa học này (LX-BE-1.1)
-    const userProgress = await this.prisma.learningProgress.findMany({
-      where: { userId, courseId },
-    });
-    // 4. Gộp (Merge) cấu trúc và tiến độ
-    // Chuyển mảng tiến độ thành Map để tìm kiếm nhanh O(1)
-    const progressMap = new Map(userProgress.map((p) => [p.lessonId, p]));
-    const sectionsWithProgress = course.sections.map((section) => ({
-      ...section,
-      lessons: section.lessons.map((lesson) => {
-        const progress = progressMap.get(lesson.id);
-        return {
-          ...lesson,
-          userProgress: progress || { status: 'NOT_STARTED', lastPosition: 0 },
-        };
-      }),
-    }));
-    // 5. Tính toán tổng quan % hoàn thành (Optional nhưng rất hữu ích cho FE)
-    const totalLessons = sectionsWithProgress.reduce(
-      (acc, s) => acc + s.lessons.length,
-      0,
-    );
-    const completedLessons = userProgress.filter(
-      (p) => p.status === 'COMPLETED',
-    ).length;
-    const progressPercentage =
-      totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
-    return {
-      courseId: course.id,
-      courseTitle: course.title,
-      progressPercentage,
-      sections: sectionsWithProgress,
-    };
-  }
-
-  /**
-   * TASK LX-BE-1.4: Lấy chi tiết nội dung bài học và tiến độ cá nhân
-   */
-  async getLessonDetail(lessonId: string, userId: string) {
-    // 1. Lấy thông tin chi tiết bài học
-    const lesson = await this.prisma.lesson.findUnique({
-      where: { id: lessonId },
-    });
-    if (!lesson) {
-      throw new NotFoundException('Bài học không tồn tại');
-    }
-    // 2. Tìm hoặc Tự động khởi tạo tiến độ học tập (Optimistic Initialization)
-    // Nếu học viên lần đầu bấm vào bài này, chúng ta tạo luôn bản ghi NOT_STARTED
-    let progress = await this.prisma.learningProgress.findUnique({
-      where: {
-        userId_lessonId: { userId, lessonId },
-      },
-    });
-    if (!progress) {
-      progress = await this.prisma.learningProgress.create({
-        data: {
-          userId,
-          lessonId,
-          courseId: lesson.courseId,
-          status: 'NOT_STARTED',
-          lastPosition: 0,
-        },
-      });
-    }
-    // 3. Trả về object gộp (Sử dụng cho Player/Editor ở Frontend)
-    return {
-      id: lesson.id,
-      title: lesson.title,
-      type: lesson.type, // VIDEO, ARTICLE, QUIZ, LAB
-      content: lesson.content, // Đây là lúc chúng ta trả về dữ liệu nặng (Video URL/Markdown)
-      duration: lesson.duration,
-      metadata: lesson.aiMetadata, // Metadata từ Module Course (S4-CM-05)
-      userProgress: {
-        status: progress.status,
-        lastPosition: progress.lastPosition,
-        score: progress.score,
-        metadata: progress.metadata,
-      },
     };
   }
 
@@ -294,7 +172,103 @@ export class LxService {
     });
     return { result, details };
   }
-  // src/modules/lx/lx.service.ts
+
+  // Thêm vào lx.service.ts
+
+  async getRuntimeOverview(courseId: string, userId: string) {
+    // Kiểm tra quyền: đã mua khóa học chưa
+    const purchase = await this.prisma.purchase.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+    });
+    if (!purchase)
+      throw new ForbiddenException('Bạn chưa đăng ký khóa học này');
+    await this.ensureProgressInitialized(courseId, userId);
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        sections: {
+          orderBy: { orderIndex: 'asc' },
+          include: {
+            lessons: {
+              orderBy: { orderIndex: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                isFreePreview: true,
+                orderIndex: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!course) throw new NotFoundException();
+    const userProgress = await this.prisma.learningProgress.findMany({
+      where: { userId, courseId },
+    });
+    const progressMap = new Map(userProgress.map((p) => [p.lessonId, p]));
+    const sectionsWithProgress = course.sections.map((section) => ({
+      ...section,
+      lessons: section.lessons.map((lesson) => ({
+        ...lesson,
+        status: progressMap.get(lesson.id)?.status || 'NOT_STARTED',
+      })),
+    }));
+    const totalLessons = sectionsWithProgress.reduce(
+      (acc, s) => acc + s.lessons.length,
+      0,
+    );
+    const completedLessons = userProgress.filter(
+      (p) => p.status === 'COMPLETED',
+    ).length;
+    const progressPercentage =
+      totalLessons === 0 ? 0 : (completedLessons / totalLessons) * 100;
+    return {
+      courseId: course.id,
+      courseTitle: course.title,
+      progressPercentage,
+      sections: sectionsWithProgress,
+    };
+  }
+
+  async getLessonDetail(lessonId: string, userId: string) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+    if (!lesson) throw new NotFoundException();
+    // Kiểm tra quyền (free preview hoặc đã mua)
+    if (!lesson.isFreePreview) {
+      const purchase = await this.prisma.purchase.findUnique({
+        where: { userId_courseId: { userId, courseId: lesson.courseId } },
+      });
+      if (!purchase) throw new ForbiddenException();
+    }
+    let progress = await this.prisma.learningProgress.findUnique({
+      where: { userId_lessonId: { userId, lessonId } },
+    });
+    if (!progress) {
+      progress = await this.prisma.learningProgress.create({
+        data: {
+          userId,
+          lessonId,
+          courseId: lesson.courseId,
+          status: 'NOT_STARTED',
+          lastPosition: 0,
+        },
+      });
+    }
+    return {
+      ...lesson,
+      userProgress: {
+        status: progress.status,
+        lastPosition: progress.lastPosition,
+        score: progress.score,
+        metadata: progress.metadata,
+      },
+    };
+  }
+
   async updateProgress(
     userId: string,
     lessonId: string,
@@ -303,17 +277,16 @@ export class LxService {
     const lesson = await this.prisma.lesson.findUnique({
       where: { id: lessonId },
     });
-    if (!lesson) throw new NotFoundException('Lesson not found');
-    const purchase = await this.prisma.purchase.findFirst({
-      where: { userId, courseId: lesson.courseId, status: 'COMPLETED' },
+    if (!lesson) throw new NotFoundException();
+    const purchase = await this.prisma.purchase.findUnique({
+      where: { userId_courseId: { userId, courseId: lesson.courseId } },
     });
-    if (!purchase)
-      throw new ForbiddenException('Bạn chưa đăng ký khóa học này');
+    if (!purchase) throw new ForbiddenException();
     const progress = await this.prisma.learningProgress.upsert({
       where: { userId_lessonId: { userId, lessonId } },
       update: {
         status: dto.status,
-        lastPosition: dto.lastPosition,
+        lastPosition: dto.lastPosition ?? undefined,
         completedAt: dto.status === 'COMPLETED' ? new Date() : undefined,
       },
       create: {
@@ -338,9 +311,8 @@ export class LxService {
         context = `Bài học: ${lesson.title}\nNội dung: ${lesson.content?.substring(0, 500)}...\nMetadata: ${JSON.stringify(lesson.aiMetadata)}`;
       }
     }
-    // TODO: Gọi AI service (OpenAI, Gemini, ...)
-    const mockAnswer = `[AI] Bạn hỏi: "${dto.question}". Đây là câu trả lời mẫu. Hãy tích hợp AI thật.`;
-    // Ghi log interaction
+
+    const mockAnswer = `[AI] Dựa trên ngữ cảnh: ${context.substring(0, 100)}...\nCâu trả lời cho: "${dto.question}"`;
     await this.prisma.aIInteraction.create({
       data: {
         userId,

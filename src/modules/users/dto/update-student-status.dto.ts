@@ -6,3 +6,4 @@ export class UpdateStudentStatusDto {
     message: 'Trạng thái phải là ACTIVE hoặc LOCKED',
   })
   status: UserStatus.ACTIVE | UserStatus.LOCKED;
+}

@@ -23,8 +23,10 @@ import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { CertificateModule } from './modules/certificate/certificate.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ExamModule } from './modules/exam/exam.module';
-import { RevenueModule } from './modules/revenue/revenue.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { RevenueModule } from './modules/revenue/revenue.module';
+import { PaymentModule } from './modules/payment/payment.module';
+import { SearchModule } from './modules/search/search.module';
 @Module({
   imports: [
     // --- 1. ConfigModule: Đọc biến môi trường (.env / system) ---
@@ -153,6 +155,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ReportModule,
     TeacherPaymentModule,
     AnnouncementModule,
+    PaymentModule,
+    SearchModule,
   ],
   controllers: [AppController], // Controller cho health check (nếu có)
   providers: [AppService], // Không dùng global guard cho Throttler

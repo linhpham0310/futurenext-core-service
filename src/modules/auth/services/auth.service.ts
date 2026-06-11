@@ -7,6 +7,7 @@ import {
   BadRequestException,
   ForbiddenException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, IsNull, MoreThan, Repository } from 'typeorm';
@@ -1153,17 +1154,27 @@ export class AuthService {
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
-    const user = await this.usersService.findById(userId);
+    const user = await this.entityManager.findOne(User, {
+      where: { id: userId },
+      relations: ['credential'],
+    });
     if (!user) throw new NotFoundException('User not found');
 
-    const isMatch = await bcrypt.compare(
+    const isMatch = await this.hashingService.compare(
       dto.currentPassword,
-      user.passwordHash,
+      user.credential.passwordHash,
     );
     if (!isMatch) throw new BadRequestException('Mật khẩu hiện tại không đúng');
 
-    const hashed = await bcrypt.hash(dto.newPassword, 10);
-    await this.usersService.updatePassword(userId, hashed);
+    const hashed = await this.hashingService.hash(dto.newPassword);
+    await this.entityManager.update(
+      UserCredential,
+      { userId },
+      { passwordHash: hashed, passwordUpdatedAt: new Date() },
+    );
+
+    await this.revokeAllUserSessions(userId);
+
     return { message: 'Đổi mật khẩu thành công' };
   }
 }

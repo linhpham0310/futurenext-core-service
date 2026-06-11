@@ -21,7 +21,15 @@ export class SubmitTeacherProfileDto {
   expertise?: string[];
 }
 
-// [Task: S3-BE-01] DTO cho Update kế thừa từ Submit nhưng cho phép các trường là optional
-export class UpdateTeacherProfileDto extends PartialType(
-  SubmitTeacherProfileDto,
-) {}
+export class UpdateTeacherProfileDto {
+  @IsOptional()
+  @IsString({ message: 'Bio phải là chuỗi văn bản' })
+  @IsNotEmpty({ message: 'Bio không được để trống' })
+  @MaxLength(2000, { message: 'Bio không được vượt quá 2000 ký tự' })
+  bio: string;
+
+  @IsArray({ message: 'Expertise phải là một mảng' })
+  @IsOptional()
+  @IsString({ each: true, message: 'Mỗi chuyên môn phải là chuỗi văn bản' })
+  expertise?: string[];
+}

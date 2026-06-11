@@ -1,4 +1,3 @@
-// --- FILE TẠO MỚI ---
 import { IsEnum, IsNotEmpty } from 'class-validator';
 import { UserRole } from '@/modules/users/entities/user.entity';
 

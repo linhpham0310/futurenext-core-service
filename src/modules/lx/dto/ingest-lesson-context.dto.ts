@@ -8,7 +8,7 @@ import {
   IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-// --- TASK: LX-AI-1.2 (SPRINT 1) ---
+
 class ChunkItemDto {
   @IsInt()
   @IsNotEmpty()

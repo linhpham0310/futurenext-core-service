@@ -4,7 +4,7 @@ import { UserRole, UserStatus } from '../entities/user.entity'; // [KẾ THỪA 
 
 export class UserQueryDto {
   @IsOptional()
-  @Type(() => Number) // Ép kiểu từ string (URL) sang Number
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   page: number = 1;
@@ -13,7 +13,7 @@ export class UserQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100) // Khống chế tối đa 100 bản ghi/trang để tránh treo DB
+  @Max(100)
   limit: number = 10;
 
   @IsOptional()
@@ -26,5 +26,5 @@ export class UserQueryDto {
 
   @IsOptional()
   @IsString()
-  q?: string; // Tham số tìm kiếm mờ
+  q?: string;
 }

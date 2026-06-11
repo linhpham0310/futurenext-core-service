@@ -1,16 +1,16 @@
+// src/modules/exam/dto/create-exam.dto.ts
 import {
   IsString,
   IsNotEmpty,
   IsEnum,
-  IsNumber,
+  IsInt,
   Min,
+  IsOptional,
   IsArray,
   ValidateNested,
   IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { PartialType } from '@nestjs/mapped-types';
-import { QuestionDto } from './question.dto';
 
 export enum ExamType {
   MCQ = 'MCQ',
@@ -18,9 +18,29 @@ export enum ExamType {
   MIXED = 'MIXED',
 }
 
-export enum QuestionType {
-  MCQ = 'MCQ',
-  ESSAY = 'ESSAY',
+class QuestionDto {
+  @IsOptional()
+  @IsUUID()
+  id: string;
+
+  @IsString()
+  @IsNotEmpty()
+  text: string;
+
+  @IsEnum(['MCQ', 'ESSAY'])
+  type: string;
+
+  @IsArray()
+  @IsOptional()
+  options?: string[];
+
+  @IsString()
+  @IsOptional()
+  correctAnswer?: string;
+
+  @IsString()
+  @IsOptional()
+  explanation?: string;
 }
 
 export class CreateExamDto {
@@ -35,7 +55,7 @@ export class CreateExamDto {
   @IsEnum(ExamType)
   type: ExamType;
 
-  @IsNumber()
+  @IsInt()
   @Min(1)
   duration: number;
 
@@ -43,11 +63,4 @@ export class CreateExamDto {
   @ValidateNested({ each: true })
   @Type(() => QuestionDto)
   questions: QuestionDto[];
-}
-
-export class UpdateExamDto extends PartialType(CreateExamDto) {}
-
-export class PublishExamDto {
-  @IsUUID()
-  courseId: string;
 }

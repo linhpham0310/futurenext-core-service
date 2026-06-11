@@ -56,12 +56,7 @@ import { UsersModule } from '../users/users.module';
   ],
   controllers: [NotificationController],
 
-  providers: [
-    EmailService,
-    UserRegisteredListener,
-    Logger,
-    //  Không có AuthListener ở đây
-  ],
+  providers: [EmailService, UserRegisteredListener, Logger],
   exports: [EmailService],
 })
 export class NotificationsModule {}

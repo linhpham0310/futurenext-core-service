@@ -9,8 +9,6 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  //  QUAN TRỌNG: Đọc PORT từ environment, Cloud Run sẽ set là 8080
-  // Không có giá trị mặc định để tránh nhầm lẫn
   const port = configService.get<number>('PORT') ?? 8080;
   //  Nếu không có PORT, throw error rõ ràng
   if (!port) {

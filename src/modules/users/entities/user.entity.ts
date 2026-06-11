@@ -49,8 +49,11 @@ export class User {
   fullName: string;
 
   @Column('citext', { unique: true, nullable: false })
-  @Index({ unique: true }) // Index unique cho email
+  @Index({ unique: true })
   email: string;
+
+  @Column('varchar', { name: 'phone', length: 20, nullable: true })
+  phone?: string;
 
   @Column('varchar', { name: 'avatar_url', nullable: true, length: 1024 })
   avatarUrl?: string | null;

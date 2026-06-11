@@ -4,20 +4,17 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './services/users.service';
-import { UsersController } from './controllers/users.controller'; // Controller cho /me
-// Import UsersAdminController nếu có
-import { User } from './entities/user.entity'; // Import các entity liên quan
+import { UsersController } from './controllers/users.controller';
+import { User } from './entities/user.entity';
 import { UserCredential } from './entities/user-credential.entity';
 import { UserConsent } from './entities/user-consent.entity';
 import { TeacherProfile } from './entities/teacher-profile.entity';
-// AuthModule thường được import global hoặc trong AppModule, không cần import ở đây
-// SharedModule cũng thường là global
-import { UsersAdminController } from './users-admin.controller';
 import { TeacherProfilesController } from './controllers/teacher-profiles.controller';
 import { TeacherProfilesService } from './services/teacher-profiles.service';
 import { AdminTeacherProfilesController } from './controllers/admin-teacher-profiles.controller';
-// src/modules/user/user.module.ts
 import { PrismaModule } from '../../../prisma/prisma.module';
+import { UsersAdminController } from './controllers/users-admin.controller';
+import { StudentController } from './controllers/student.controller';
 
 @Module({
   imports: [
@@ -26,22 +23,17 @@ import { PrismaModule } from '../../../prisma/prisma.module';
       UserCredential,
       UserConsent,
       TeacherProfile,
-      PrismaModule,
     ]),
+    PrismaModule,
   ],
   controllers: [
     UsersController,
     UsersAdminController,
     TeacherProfilesController,
     AdminTeacherProfilesController,
+    StudentController,
   ],
-  providers: [
-    UsersService,
-    //UserRepository,
-    //TeacherProfileRepository,
-    UsersAdminController,
-    TeacherProfilesService,
-  ],
+  providers: [UsersService, UsersAdminController, TeacherProfilesService],
   exports: [UsersService, TypeOrmModule, TeacherProfilesService],
 })
 export class UsersModule {}

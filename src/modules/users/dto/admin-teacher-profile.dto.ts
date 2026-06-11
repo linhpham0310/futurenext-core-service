@@ -1,16 +1,15 @@
 // [Task: S3-BE-02] Khởi tạo DTO quản lý payload từ Admin cho luồng duyệt giáo viên
-import { IsEnum, IsInt, IsOptional, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { TeacherProfileStatus } from '../entities/teacher-profile.entity';
 
-// [Task: S3-BE-02] DTO dùng để parse và validate URL Query khi Admin xem danh sách
 export class GetTeacherProfilesFilterDto {
   @IsOptional()
   @IsEnum(TeacherProfileStatus, { message: 'Trạng thái (status) không hợp lệ' })
   status?: TeacherProfileStatus;
 
   @IsOptional()
-  @Type(() => Number) // Parse string từ URL sang Number
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   page?: number = 1;
@@ -22,10 +21,13 @@ export class GetTeacherProfilesFilterDto {
   limit?: number = 10;
 }
 
-// [Task: S3-BE-02] DTO dùng để validate Body khi Admin bấm Duyệt/Từ chối
 export class ReviewTeacherProfileDto {
   @IsEnum(TeacherProfileStatus, {
     message: 'Trạng thái duyệt chỉ được phép là APPROVED hoặc REJECTED',
   })
   status: TeacherProfileStatus;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }

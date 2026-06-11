@@ -6,10 +6,11 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")  
-  schemas  = ["course_mgmt", "lx"]
+  schemas  = ["course_mgmt", "lx", "public"]
   //extensions = [uuid_ossp, vector] 
   directUrl = env("DIRECT_URL")  
 }
+
 
 enum CourseStatus {
   DRAFT
@@ -25,9 +26,13 @@ enum LessonType {
   VIDEO
   ARTICLE
   QUIZ
+  LAB
 
   @@schema("course_mgmt")
 }
+
+// ==================== course_mgmt ====================
+
 
 model Course {
   id           String       @id @default(uuid())
@@ -46,6 +51,11 @@ model Course {
   sections          Section[]
   reviewLogs        CourseReviewLog[]
   curriculumMapping CurriculumMapping[]
+  purchases         Purchase[]
+  favorites         Favorite[]
+  reviews           Review[]
+  certificates      Certificate[]
+  announcements     Announcement[]
 
   @@index([instructorId])
   @@index([status])
@@ -72,16 +82,15 @@ model Lesson {
   sectionId     String
   title         String     @db.VarChar(255)
   slug          String
-  type          LessonType @default(VIDEO)
+  type          LessonType @default(ARTICLE)
   content       String?    @db.Text
   duration      Int?       @default(0)
   orderIndex    Int        @default(0)
   isFreePreview Boolean    @default(false)
+  aiMetadata    Json       @default("[]")
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
-  // TASK S4-CM-05: Thêm cột metadata cho AI (JSONB)
-  aiMetadata Json @default("[]")
 
   section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
 
@@ -139,13 +148,10 @@ model LearningProgress {
 
   status       ProgressStatus @default(NOT_STARTED)
 
-  // Giây video hoặc vị trí code
   lastPosition Int            @default(0)
 
-  // Quiz/Lab score
   score        Decimal?       @db.Decimal(5, 2)
 
-  // Metadata linh hoạt
   metadata     Json?          @default("{}")
 
   completedAt  DateTime?
@@ -164,25 +170,19 @@ model AIInteraction {
   userId          String   @map("user_id")
   lessonId        String   @map("lesson_id")
   
-  // Loại tương tác: 'CHAT' (AI TA) hoặc 'LAB_COACH' (AI Lab) (LLD Page 2)
   interactionType String   @map("interaction_type") @db.VarChar(20)
 
-  // Câu hỏi đầu vào của học viên
   prompt          String   @db.Text
 
-  // Phản hồi trả về từ hệ thống AI (FastAPI Adapter)
   response        String   @db.Text
 
-  // JSONB snapshot lưu nội dung bài học tại thời điểm hỏi để RAG ổn định (LLD Page 2)
   contextSnapshot Json?    @map("context_snapshot") @default("{}")
   
   createdAt       DateTime @default(now()) @map("created_at")
 
-  // Thiết lập các Index tăng tốc truy vấn lịch sử cho học viên (LLD Page 1)
   @@index([userId, lessonId])
   @@schema("lx")
 
-  // Map chính xác tên bảng vật lý trong PostgreSQL
   @@map("lx_ai_interactions")
 }
 
@@ -190,33 +190,250 @@ model LxLessonContext {
   id           String   @id @default(uuid())
   lessonId     String   @map("lesson_id")
 
-  // Thứ tự của đoạn văn bản trong bài học (0, 1, 2...) giúp tái tạo lại văn bản khi cần
   chunkIndex   Int      @map("chunk_index")
 
-  // Nội dung thô của phân đoạn kiến thức (Paragraph/Chunk) dùng để feed vào Prompt AI
   contentChunk String   @map("content_chunk") @db.Text
 
-  // Lưu trữ các metadata bổ trợ: từ khóa chính, thực thể (entities), hoặc vector id
   metadata     Json?    @default("{}")
 
   createdAt    DateTime @default(now()) @map("created_at")
 
-  // Ràng buộc đảm bảo không bị trùng lặp vị trí phân đoạn của một bài học
   @@unique([lessonId, chunkIndex])
 
-  // Tối ưu hóa tốc độ truy vấn tìm kiếm Knowledge theo bài học
   @@index([lessonId])
   @@schema("lx")
   @@map("lx_lesson_contexts")
 }
 
+// ==================== public schema ====================
+
 model Purchase {
+  id        String   @id @default(uuid())
+  userId    String
+  courseId  String
+
+  amount      Decimal  @db.Decimal(12,2)
+  status      String   @default("COMPLETED") 
+  purchasedAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@schema("lx")
+  @@map("purchases")
+}
+
+model Favorite {
   id        String   @id @default(uuid())
   userId    String
   courseId  String
   createdAt DateTime @default(now())
 
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
   @@unique([userId, courseId])
-  @@schema("lx")
-  @@map("lx_purchases")
+  @@index([userId])
+  @@schema("public")
+  @@map("favorites")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  courseId  String
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([courseId])
+  @@schema("public")
+  @@map("reviews")
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String   @db.Text
+  description String   @db.Text
+  link        String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@schema("public")
+  @@map("notifications")
+}
+
+model Certificate {
+  id             String   @id @default(uuid())
+  userId         String
+  courseId       String
+  studentName    String   @db.VarChar(255)
+  courseTitle    String   @db.VarChar(255)
+  certificateUrl String   @db.Text
+  issuedAt       DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@schema("public")
+  @@map("certificates")
+}
+
+model Announcement {
+  id          String   @id @default(uuid())
+  courseId    String
+  teacherId   String
+  title       String   @db.VarChar(255)
+  content     String   @db.Text
+  createdAt   DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@schema("public")
+  @@map("announcements")
+}
+
+enum ExamType {
+  MCQ
+  ESSAY
+  MIXED
+  @@schema("public")
+}
+
+model Exam {
+  id            String     @id @default(uuid())
+  teacherId     String
+  courseId      String 
+  title         String     @db.Text
+  topic         String?    @db.Text
+  type          ExamType   @default(MCQ)
+  duration      Int        @default(60)
+  isPublished   Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  questions   Question[]
+  results     ExamResult[]
+
+  @@index([teacherId])
+  @@index([courseId])
+  @@schema("public")
+  @@map("exams")
+}
+
+enum ExamResultStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  @@schema("public")
+}
+
+model ExamResult {
+  id             String           @id @default(uuid())
+  examId         String
+  userId         String
+  score          Decimal?         @db.Decimal(5, 2)
+  totalQuestions Int
+  answers        Json             @default("{}")
+  status         ExamResultStatus @default(NOT_STARTED)
+  submittedAt    DateTime         @default(now())
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, userId])
+  @@index([userId])
+  @@schema("public")
+  @@map("exam_results")
+}
+
+model PaymentSetting {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  bankName      String?  @db.VarChar(100)
+  bankAccount   String?  @db.VarChar(50)
+  accountHolder String?  @db.VarChar(255)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@schema("public")
+  @@map("payment_settings")
+}
+
+model RevenueTransaction {
+  id          String   @id @default(uuid())
+  userId      String   
+  teacherId   String  
+  courseId    String
+  amount      Decimal  @db.Decimal(12,2)
+  type        String   
+  status      String   
+  createdAt   DateTime @default(now())
+
+  @@index([teacherId])
+  @@index([userId])
+  @@schema("public")
+  @@map("revenue_transactions")
+}
+
+enum QuestionType {
+  MCQ
+  ESSAY
+  @@schema("public")
+}
+
+model Question {
+  id            String       @id @default(uuid())
+  examId        String
+  text          String       @db.Text
+  type          QuestionType @default(MCQ)
+  options       Json?                          
+  correctAnswer String?      @db.Text
+  explanation   String?      @db.Text
+  orderIndex    Int          @default(0)
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+  @@schema("public")
+  @@map("questions")
+}
+
+enum TransactionType {
+  PURCHASE
+  REFUND
+  @@schema("public")
+}
+
+enum TransactionStatus {
+  SUCCESS
+  FAILED
+  PENDING
+  @@schema("public")
+}
+
+model Transaction {
+  id        String            @id @default(uuid())
+  userId    String
+  courseId  String?
+  amount    Decimal           @db.Decimal(12, 2)
+  type      TransactionType   @default(PURCHASE)
+  status    TransactionStatus @default(SUCCESS)
+  createdAt DateTime          @default(now())
+
+  @@index([userId])
+  @@schema("public")
+  @@map("transactions")
 }
