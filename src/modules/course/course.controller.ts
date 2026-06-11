@@ -24,12 +24,14 @@ import { ProcessReviewDto } from './dto/process-review.dto';
 import { UserRole } from '../users/entities/user.entity';
 import { UpdateLessonMetadataDto } from './dto/update-lesson-metadata.dto';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { PrismaService } from 'prisma/prisma.service';
 
 @Controller('courses')
 export class CourseController {
   [x: string]: any;
   constructor(
     private readonly courseService: CourseService,
+    private readonly prisma: PrismaService,
     private readonly storage: SupabaseStorageService,
   ) {}
 
@@ -195,11 +197,6 @@ export class CourseController {
   @Post(':id/enroll')
   async enrollCourse(@Param('id') courseId: string, @Request() req) {
     return this.courseService.enrollCourse(req.user.sub, courseId);
-  }
-
-  @Get('public')
-  async getPublicCourses(@Query() query: any) {
-    return this.courseService.findAllPublished(query);
   }
 
   @Get('public/:id')
