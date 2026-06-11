@@ -9,9 +9,15 @@ import { SupabaseStorageModule } from '../storage/supabase-storage.module';
 import { PrismaModule } from '../../../prisma/prisma.module';
 import { AdminCourseController } from './dto/admin-course.controller';
 import { TeacherCourseController } from './teacher-course.controller';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from '../users/entities/user.entity';
 
 @Module({
-  imports: [SupabaseStorageModule, PrismaModule],
+  imports: [
+    TypeOrmModule.forFeature([User]),
+    SupabaseStorageModule,
+    PrismaModule,
+  ],
   controllers: [
     CourseController,
     AdminCourseController,

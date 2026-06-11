@@ -22,6 +22,9 @@ import { createClient } from '@supabase/supabase-js';
 import { sanitize } from '../common/utils/sanitize';
 import ws from 'ws';
 import { UpdateCourseDto } from './dto/update-course.dto';
+import { InjectEntityManager } from '@nestjs/typeorm';
+import { EntityManager } from 'typeorm';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class CourseService {
@@ -38,6 +41,7 @@ export class CourseService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2, // Inject EventEmitter2
+    @InjectEntityManager() private entityManager: EntityManager,
   ) {}
 
   async createDraft(instructorId: string, dto: CreateCourseDto) {
@@ -673,22 +677,52 @@ export class CourseService {
 
   async getMyCourses(teacherId: string) {
     return this.prisma.course.findMany({
-      where: { teacherId },
+      where: { instructorId: teacherId },
       include: { _count: { select: { sections: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async getAllStudentsByTeacher(teacherId: string) {
+    // 1. Lấy tất cả khóa học của teacher
     const courses = await this.prisma.course.findMany({
-      where: { teacherId },
+      where: { instructorId: teacherId },
       select: { id: true, title: true },
     });
     const courseIds = courses.map((c) => c.id);
+
+    // 2. Lấy tất cả giao dịch thành công của các khóa đó
     const enrollments = await this.prisma.purchase.findMany({
-      where: { courseId: { in: courseIds }, status: 'COMPLETED' },
-      include: { user: { select: { id: true, fullName: true, email: true } } },
+      where: {
+        courseId: { in: courseIds },
+        status: 'COMPLETED',
+      },
+      select: {
+        userId: true,
+        courseId: true,
+        purchasedAt: true,
+      },
     });
-    return enrollments;
+
+    if (enrollments.length === 0) return [];
+
+    // 3. Lấy thông tin user từ TypeORM
+    const userIds = [...new Set(enrollments.map((e) => e.userId))];
+    const users = await this.entityManager.find(User, {
+      where: userIds.map((id) => ({ id })),
+      select: ['id', 'fullName', 'email'],
+    });
+
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    // 4. Ghép dữ liệu
+    return enrollments.map((enrollment) => ({
+      id: enrollment.userId,
+      fullName: userMap.get(enrollment.userId)?.fullName || 'Unknown',
+      email: userMap.get(enrollment.userId)?.email || '',
+      courseId: enrollment.courseId,
+      courseTitle: courses.find((c) => c.id === enrollment.courseId)?.title,
+      enrolledAt: enrollment.purchasedAt,
+    }));
   }
 }
