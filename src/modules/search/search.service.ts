@@ -45,4 +45,28 @@ export class SearchService {
     ];
     return results;
   }
+
+  async searchCourses(q: string, page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
+    const where = {
+      status: 'PUBLISHED' as any,
+      OR: [
+        { title: { contains: q, mode: 'insensitive' as any } },
+        { description: { contains: q, mode: 'insensitive' as any } },
+      ],
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.course.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.course.count({ where }),
+    ]);
+    return {
+      items,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
 }

@@ -146,7 +146,6 @@ import { SearchModule } from './modules/search/search.module';
     LxModule,
     PrismaModule,
     CourseModule,
-    LxModule,
     ExamModule,
     RevenueModule,
     DashboardModule,

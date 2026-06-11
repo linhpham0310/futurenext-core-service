@@ -5,63 +5,112 @@ import { PrismaService } from '../../../prisma/prisma.service';
 export class RevenueService {
   constructor(private prisma: PrismaService) {}
 
-  async getStats(teacherId?: string) {
-    const where = teacherId
-      ? { teacherId, status: 'SUCCESS' }
-      : { status: 'SUCCESS' };
+  async getAdminStats() {
     const now = new Date();
-    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthFirstDay = new Date(
-      now.getFullYear(),
-      now.getMonth() - 1,
-      1,
-    );
-    const monthlyRevenueAgg = await this.prisma.revenueTransaction.aggregate({
-      _sum: { amount: true },
-      where: { ...where, createdAt: { gte: firstDayOfMonth } },
-    });
-    const totalRevenueAgg = await this.prisma.revenueTransaction.aggregate({
-      _sum: { amount: true },
-      where,
-    });
-    const monthlyTransactions = await this.prisma.revenueTransaction.count({
-      where: { ...where, createdAt: { gte: firstDayOfMonth } },
-    });
-    const lastMonthRevenueAgg = await this.prisma.revenueTransaction.aggregate({
-      _sum: { amount: true },
-      where: {
-        ...where,
-        createdAt: { gte: lastMonthFirstDay, lt: firstDayOfMonth },
-      },
-    });
-    const currentMonthRevenue = monthlyRevenueAgg._sum.amount || 0;
-    const lastMonthRevenue = lastMonthRevenueAgg._sum.amount || 0;
-    const growthPercent =
-      lastMonthRevenue === 0
-        ? currentMonthRevenue > 0
-          ? 100
-          : 0
-        : ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const [monthly, lastMonthly, total, monthlyCount] = await Promise.all([
+      this.prisma.purchase.aggregate({
+        where: { status: 'COMPLETED', purchasedAt: { gte: monthStart } },
+        _sum: { amount: true },
+      }),
+      this.prisma.purchase.aggregate({
+        where: {
+          status: 'COMPLETED',
+          purchasedAt: { gte: lastMonthStart, lt: monthStart },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.purchase.aggregate({
+        where: { status: 'COMPLETED' },
+        _sum: { amount: true },
+      }),
+      this.prisma.purchase.count({
+        where: { status: 'COMPLETED', purchasedAt: { gte: monthStart } },
+      }),
+    ]);
+
+    const growthPercent = lastMonthly._sum.amount
+      ? (((monthly._sum.amount ?? 0) - (lastMonthly._sum.amount ?? 0)) /
+          Number(lastMonthly._sum.amount)) *
+        100
+      : 0;
+
     return {
-      monthlyRevenue: currentMonthRevenue,
-      totalRevenue: totalRevenueAgg._sum.amount || 0,
-      monthlyTransactions,
-      growthPercent: Math.round(growthPercent),
+      monthlyRevenue: monthly._sum.amount ?? 0,
+      totalRevenue: total._sum.amount ?? 0,
+      monthlyTransactions: monthlyCount,
+      growthPercent,
     };
   }
 
-  async getTransactions(teacherId?: string, limit = 20) {
-    const where = teacherId
-      ? { teacherId, status: 'SUCCESS' }
-      : { status: 'SUCCESS' };
-    return this.prisma.revenueTransaction.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      include: {
-        course: { select: { title: true } },
-        user: { select: { fullName: true } },
-      },
-    });
+  async getAdminTransactions(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [items, total] = await Promise.all([
+      this.prisma.purchase.findMany({
+        where: { status: 'COMPLETED' },
+        skip,
+        take: limit,
+        orderBy: { purchasedAt: 'desc' },
+        include: { course: { select: { title: true, instructorId: true } } },
+      }),
+      this.prisma.purchase.count({ where: { status: 'COMPLETED' } }),
+    ]);
+    return {
+      items,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getTeacherStats(instructorId: string) {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const [monthly, total, monthlyCount] = await Promise.all([
+      this.prisma.purchase.aggregate({
+        where: {
+          status: 'COMPLETED',
+          purchasedAt: { gte: monthStart },
+          course: { instructorId },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.purchase.aggregate({
+        where: { status: 'COMPLETED', course: { instructorId } },
+        _sum: { amount: true },
+      }),
+      this.prisma.purchase.count({
+        where: {
+          status: 'COMPLETED',
+          purchasedAt: { gte: monthStart },
+          course: { instructorId },
+        },
+      }),
+    ]);
+    return {
+      monthlyRevenue: monthly._sum.amount ?? 0,
+      totalRevenue: total._sum.amount ?? 0,
+      monthlyTransactions: monthlyCount,
+    };
+  }
+
+  async getTeacherTransactions(instructorId: string, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [items, total] = await Promise.all([
+      this.prisma.purchase.findMany({
+        where: { status: 'COMPLETED', course: { instructorId } },
+        skip,
+        take: limit,
+        orderBy: { purchasedAt: 'desc' },
+        include: { course: { select: { title: true } } },
+      }),
+      this.prisma.purchase.count({
+        where: { status: 'COMPLETED', course: { instructorId } },
+      }),
+    ]);
+    return {
+      items,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 }
