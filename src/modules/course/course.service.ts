@@ -246,13 +246,6 @@ export class CourseService {
     return course;
   }
 
-  async getMyCourses(userId: string) {
-    return this.prisma.course.findMany({
-      where: { instructorId: userId },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
   async getSections(courseId: string) {
     return this.prisma.section.findMany({
       where: { courseId },
@@ -676,5 +669,26 @@ export class CourseService {
       isEnrolled = !!purchase;
     }
     return { ...course, isEnrolled };
+  }
+
+  async getMyCourses(teacherId: string) {
+    return this.prisma.course.findMany({
+      where: { teacherId },
+      include: { _count: { select: { sections: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getAllStudentsByTeacher(teacherId: string) {
+    const courses = await this.prisma.course.findMany({
+      where: { teacherId },
+      select: { id: true, title: true },
+    });
+    const courseIds = courses.map((c) => c.id);
+    const enrollments = await this.prisma.purchase.findMany({
+      where: { courseId: { in: courseIds }, status: 'COMPLETED' },
+      include: { user: { select: { id: true, fullName: true, email: true } } },
+    });
+    return enrollments;
   }
 }

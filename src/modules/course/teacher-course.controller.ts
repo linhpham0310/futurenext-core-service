@@ -150,4 +150,9 @@ export class TeacherCourseController {
       req.user.sub,
     );
   }
+
+  @Get('students')
+  async getAllStudents(@Request() req) {
+    return this.courseService.getAllStudentsByTeacher(req.user.sub);
+  }
 }
