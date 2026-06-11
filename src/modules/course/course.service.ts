@@ -677,11 +677,4 @@ export class CourseService {
     }
     return { ...course, isEnrolled };
   }
-
-  async getMyCourses(teacherId: string) {
-    return this.prisma.course.findMany({
-      where: { instructorId: teacherId },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
 }

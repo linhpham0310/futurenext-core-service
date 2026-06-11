@@ -132,4 +132,22 @@ export class TeacherCourseController {
   ) {
     return this.courseService.updateLessonContent(lessonId, dto, req.user.sub);
   }
+
+  @Get(':id/students')
+  async getCourseStudents(@Param('id') courseId: string, @Request() req) {
+    return this.courseService.getCourseStudents(courseId, req.user.sub);
+  }
+
+  @Patch(':id/outcomes')
+  async updateOutcomes(
+    @Param('id') courseId: string,
+    @Body() dto: { outcomes: string[] },
+    @Request() req,
+  ) {
+    return this.courseService.updateOutcomes(
+      courseId,
+      dto.outcomes,
+      req.user.sub,
+    );
+  }
 }
