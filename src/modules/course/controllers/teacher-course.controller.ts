@@ -22,6 +22,7 @@ import { CreateSectionDto } from '../dto/create-section.dto';
 import { ReorderSectionsDto } from '../dto/reorder-sections.dto';
 import { CreateLessonDto } from '../dto/create-lesson.dto';
 import { UpdateLessonContentDto } from '../dto/update-lesson-content.dto';
+import { CourseOwnershipGuard } from '../guards/course-ownership.guard';
 
 @Controller('teacher/courses')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -74,6 +75,7 @@ export class TeacherCourseController {
     return this.courseService.getCourseDetailWithFullContent(id, req.user.sub);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard, CourseOwnershipGuard)
   @Patch(':id/submit')
   async submit(@Param('id') id: string) {
     return this.courseService.submitCourse(id);

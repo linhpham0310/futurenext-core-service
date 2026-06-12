@@ -23,7 +23,7 @@ export class CertificateController {
       studentName: c.user.fullName,
       courseTitle: c.course.title,
       issuedAt: c.issuedAt,
-      certificateUrl: c.url,
+      certificateUrl: c.certificateUrl,
     }));
   }
 }

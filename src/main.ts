@@ -9,7 +9,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  const port = configService.get<number>('PORT') ?? 8080;
+  const port = configService.get<number>('PORT') ?? 3001;
   //  Nếu không có PORT, throw error rõ ràng
   if (!port) {
     throw new Error(
@@ -39,17 +39,11 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // --- 4. CORS for Development only ---
-  if (nodeEnv === 'development') {
-    app.enableCors({
-      origin: 'http://localhost:3001',
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-      credentials: true,
-    });
-    Logger.log(
-      'CORS enabled for development origin: http://localhost:3001',
-      'Bootstrap',
-    );
-  }
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  });
 
   // --- 5. Graceful Shutdown ---
   app.enableShutdownHooks();

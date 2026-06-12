@@ -252,7 +252,9 @@ export class TeacherProfilesService {
   }
 
   async updateProfile(userId: string, dto: UpdateTeacherProfileDto) {
-    let profile = await this.teacherProfileRepo.findOne({ where: { userId } });
+    const profile = await this.teacherProfileRepo.findOne({
+      where: { userId },
+    });
     if (!profile)
       throw new NotFoundException('Hồ sơ chưa được tạo, vui lòng nộp mới');
     if (profile.status !== TeacherProfileStatus.PENDING_REVIEW) {

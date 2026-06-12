@@ -10,6 +10,7 @@ import {
   Patch,
   NotFoundException,
   ForbiddenException,
+  Req,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/guards/roles.guard';
@@ -60,26 +61,15 @@ export class AdminCourseController {
 
   @Put(':id')
   async updateCourse(
-    courseId: string,
-    dto: UpdateCourseDto,
-    teacherId?: string,
+    @Param('id') courseId: string,
+    @Body() dto: UpdateCourseDto,
+    @Req() req: any,
   ) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-    });
-    if (!course) throw new NotFoundException();
-    if (teacherId && course.instructorId !== teacherId)
-      throw new ForbiddenException();
-    return this.prisma.course.update({ where: { id: courseId }, data: dto });
+    return this.courseService.update(courseId, dto);
   }
 
-  async deleteCourse(courseId: string, teacherId?: string) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-    });
-    if (!course) throw new NotFoundException();
-    if (teacherId && course.instructorId !== teacherId)
-      throw new ForbiddenException();
-    return this.prisma.course.delete({ where: { id: courseId } });
+  @Delete(':id')
+  async deleteCourse(@Param('id') id: string) {
+    return this.courseService.delete(id);
   }
 }

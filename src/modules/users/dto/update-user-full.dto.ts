@@ -23,8 +23,9 @@ export class UpdateUserFullDto {
   @MaxLength(20)
   phone?: string;
 
+  @IsOptional()
   @IsEnum(UserRole)
-  role: UserRole;
+  role?: UserRole;
 
   @IsEnum(UserStatus)
   status: UserStatus;
