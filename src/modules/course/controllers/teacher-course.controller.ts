@@ -10,17 +10,18 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../shared/guards/roles.guard';
-import { Roles } from '../../shared/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
-import { CourseService } from './course.service';
-import { CreateCourseDto } from './dto/create-course.dto';
-import { UpdateCourseDto } from './dto/update-course.dto';
-import { CreateSectionDto } from './dto/create-section.dto';
-import { ReorderSectionsDto } from './dto/reorder-sections.dto';
-import { CreateLessonDto } from './dto/create-lesson.dto';
-import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
+
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../shared/guards/roles.guard';
+import { Roles } from '../../../shared/decorators/roles.decorator';
+import { CourseService } from '../course.service';
+import { UserRole } from '@/modules/users/entities/user.entity';
+import { CreateCourseDto } from '../dto/create-course.dto';
+import { UpdateCourseDto } from '../dto/update-course.dto';
+import { CreateSectionDto } from '../dto/create-section.dto';
+import { ReorderSectionsDto } from '../dto/reorder-sections.dto';
+import { CreateLessonDto } from '../dto/create-lesson.dto';
+import { UpdateLessonContentDto } from '../dto/update-lesson-content.dto';
 
 @Controller('teacher/courses')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -33,15 +34,20 @@ export class TeacherCourseController {
     return this.courseService.getMyCourses(req.user.sub);
   }
 
+  @Post()
+  async create(@Request() req, @Body() dto: CreateCourseDto) {
+    return this.courseService.createDraft(req.user.sub, dto);
+  }
+
   @Get('dashboard/stats')
   async getStats(@Request() req) {
     // Đã có trong CourseService
     return this.courseService.getTeacherDashboardStats(req.user.sub);
   }
 
-  @Post()
-  async create(@Request() req, @Body() dto: CreateCourseDto) {
-    return this.courseService.createDraft(req.user.sub, dto);
+  @Get('students')
+  async getAllStudents(@Request() req) {
+    return this.courseService.getAllStudentsByTeacher(req.user.sub);
   }
 
   @Get(':id')
@@ -63,14 +69,14 @@ export class TeacherCourseController {
     return this.courseService.deleteCourse(id, req.user.sub);
   }
 
-  @Patch(':id/submit')
-  async submit(@Param('id') id: string, @Request() req) {
-    return this.courseService.submitCourse(id, req.user.sub);
-  }
-
   @Get(':id/builder')
   async getBuilder(@Param('id') id: string, @Request() req) {
     return this.courseService.getCourseDetailWithFullContent(id, req.user.sub);
+  }
+
+  @Patch(':id/submit')
+  async submit(@Param('id') id: string) {
+    return this.courseService.submitCourse(id);
   }
 
   @Post(':id/sections')
@@ -135,7 +141,7 @@ export class TeacherCourseController {
 
   @Get(':id/students')
   async getCourseStudents(@Param('id') courseId: string, @Request() req) {
-    return this.courseService.getCourseStudents(courseId, req.user.sub);
+    return this.courseService.getCourseStudents(req.user.sub, courseId);
   }
 
   @Patch(':id/outcomes')
@@ -144,15 +150,8 @@ export class TeacherCourseController {
     @Body() dto: { outcomes: string[] },
     @Request() req,
   ) {
-    return this.courseService.updateOutcomes(
-      courseId,
-      dto.outcomes,
-      req.user.sub,
-    );
-  }
-
-  @Get('students')
-  async getAllStudents(@Request() req) {
-    return this.courseService.getAllStudentsByTeacher(req.user.sub);
+    return this.courseService.updateOutcomes(courseId, {
+      outcomes: dto.outcomes,
+    });
   }
 }

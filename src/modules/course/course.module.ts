@@ -7,10 +7,10 @@ import { CourseEventListener } from './listeners/course-event.listener';
 import { CacheManagerListener } from './listeners/cache-manager.listener'; // (NEW - S4-CM-04)
 import { SupabaseStorageModule } from '../storage/supabase-storage.module';
 import { PrismaModule } from '../../../prisma/prisma.module';
-import { AdminCourseController } from './dto/admin-course.controller';
-import { TeacherCourseController } from './teacher-course.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
+import { AdminCourseController } from './controllers/admin-course.controller';
+import { TeacherCourseController } from './controllers/teacher-course.controller';
 
 @Module({
   imports: [

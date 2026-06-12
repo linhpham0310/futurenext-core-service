@@ -44,6 +44,7 @@ export class ExamService {
   async getExamForStudent(examId: string, studentId: string) {
     const exam = await this.prisma.exam.findFirst({
       where: { id: examId, isPublished: true },
+      include: { questions: true },
     });
     if (!exam) throw new NotFoundException();
     if (exam.courseId) {
@@ -83,7 +84,10 @@ export class ExamService {
     studentId: string,
     answers: Record<string, string>,
   ) {
-    const exam = await this.getExamForStudent(examId, studentId);
+    const exam = await this.prisma.exam.findUnique({
+      where: { id: examId },
+      include: { questions: true },
+    });
     const existing = await this.prisma.examResult.findUnique({
       where: { examId_userId: { examId, userId: studentId } },
     });
@@ -92,7 +96,7 @@ export class ExamService {
     if (exam.type === 'MCQ') {
       const questions = exam.questions as any[];
       let correct = 0;
-      for (const q of questions) {
+      for (const q of exam.questions) {
         if (answers[q.id] === q.correctAnswer) correct++;
       }
       score = correct;
@@ -113,9 +117,12 @@ export class ExamService {
       where: { examId_userId: { examId, userId: studentId } },
     });
     if (!result) throw new NotFoundException();
-    const exam = await this.prisma.exam.findUnique({ where: { id: examId } });
+    const exam = await this.prisma.exam.findUnique({
+      where: { id: examId },
+      include: { questions: true },
+    });
     const questions = exam.questions as any[];
-    const details = questions.map((q) => ({
+    const details = exam.questions.map((q) => ({
       questionText: q.text,
       userAnswer: result.answers[q.id],
       correctAnswer: q.correctAnswer,
@@ -138,14 +145,17 @@ export class ExamService {
       where: { examId },
       include: { user: { select: { fullName: true, email: true } } },
     });
-    return results.map((r) => ({
-      studentId: r.userId,
-      studentName: r.user.fullName,
-      email: r.user.email,
-      score: r.score,
-      submittedAt: r.submittedAt,
-      status: 'COMPLETED',
-    }));
+    return {
+      examTitle: exam.title,
+      results: results.map((r) => ({
+        studentId: r.userId,
+        studentName: r.user.fullName,
+        email: r.user.email,
+        score: r.score,
+        submittedAt: r.submittedAt,
+        status: 'COMPLETED',
+      })),
+    };
   }
 
   async generateQuestionsByAI(

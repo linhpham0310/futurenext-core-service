@@ -8,19 +8,26 @@ import {
   Query,
   UseGuards,
   Patch,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/guards/roles.guard';
 import { Roles } from '../../../shared/decorators/roles.decorator';
 import { CourseService } from '../course.service';
-import { ProcessReviewDto } from '../dto/process-review.dto';
 import { UserRole } from '@/modules/users/entities/user.entity';
+import { Request } from '@nestjs/common';
+import { UpdateCourseDto } from '../dto/update-course.dto';
+import { PrismaService } from 'prisma/prisma.service';
 
 @Controller('admin/courses')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 export class AdminCourseController {
-  constructor(private readonly courseService: CourseService) {}
+  constructor(
+    private readonly courseService: CourseService,
+    private prisma: PrismaService,
+  ) {}
 
   @Get()
   async getAllCourses(@Query() query: any) {
@@ -52,12 +59,27 @@ export class AdminCourseController {
   }
 
   @Put(':id')
-  async updateCourse(@Param('id') id: string, @Body() dto: UpdateCourseDto) {
-    return this.courseService.updateCourse(id, dto);
+  async updateCourse(
+    courseId: string,
+    dto: UpdateCourseDto,
+    teacherId?: string,
+  ) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+    if (!course) throw new NotFoundException();
+    if (teacherId && course.instructorId !== teacherId)
+      throw new ForbiddenException();
+    return this.prisma.course.update({ where: { id: courseId }, data: dto });
   }
 
-  @Delete(':id')
-  async deleteCourse(@Param('id') id: string) {
-    return this.courseService.deleteCourse(id);
+  async deleteCourse(courseId: string, teacherId?: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+    if (!course) throw new NotFoundException();
+    if (teacherId && course.instructorId !== teacherId)
+      throw new ForbiddenException();
+    return this.prisma.course.delete({ where: { id: courseId } });
   }
 }

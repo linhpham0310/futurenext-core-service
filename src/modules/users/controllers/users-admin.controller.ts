@@ -1,3 +1,5 @@
+import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
+import { RolesGuard } from '@/shared/guards/roles.guard';
 import {
   Controller,
   Get,
@@ -20,19 +22,14 @@ import {
   ApiBearerAuth,
   ApiResponse,
 } from '@nestjs/swagger';
-
-// --- IMPORT TỪ SPRINT 1 ---
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { UserRole } from './entities/user.entity';
-
-import { UserQueryDto } from './dto/user-query.dto'; // Từ Task S2-BE-04
-import { UpdateRoleDto } from './dto/update-role.dto'; // Từ Task S2-BE-05
-import { RolesGuard } from '@/shared/guards/roles.guard';
+import { UserRole } from '../entities/user.entity';
 import { Roles } from '@/shared/decorators/roles.decorator';
-import { UsersService } from './services/users.service';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdateUserFullDto } from './dto/update-user-full.dto';
-import { UpdateStudentStatusDto } from './dto/update-student-status.dto';
+import { UsersService } from '../services/users.service';
+import { UserQueryDto } from '../dto/user-query.dto';
+import { UpdateRoleDto } from '../dto/update-role.dto';
+import { UpdateUserDto } from '../dto/update-user.dto';
+import { UpdateUserFullDto } from '../dto/update-user-full.dto';
+import { UpdateStudentStatusDto } from '../dto/update-student-status.dto';
 
 /**
  * [Task: S2-BE-06] Triển khai Users Admin Controller

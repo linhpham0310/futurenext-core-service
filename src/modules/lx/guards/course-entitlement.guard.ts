@@ -11,8 +11,8 @@ export class CourseEntitlementGuard implements CanActivate {
   constructor(private prisma: PrismaService) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const userId = request.user?.id; // Lấy từ JwtAuthGuard
-    const lessonId = request.params.id; // Giả định param là /lx/lesson/:id
+    const userId = request.user?.sub; // Lấy từ JwtAuthGuard
+    const lessonId = request.params.lessonId ?? request.params.id;
     if (!userId || !lessonId) {
       throw new ForbiddenException('Thiếu thông tin xác thực hoặc bài học');
     }

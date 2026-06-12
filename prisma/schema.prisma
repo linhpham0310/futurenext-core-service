@@ -37,6 +37,7 @@ enum LessonType {
 model Course {
   id           String       @id @default(uuid())
   instructorId String
+  lessons      Lesson[]
   title        String       @db.VarChar(255)
   slug         String       @unique
   description  String?      @db.Text
@@ -80,6 +81,7 @@ model Section {
 model Lesson {
   id            String     @id @default(uuid())
   sectionId     String
+  courseId      String
   title         String     @db.VarChar(255)
   slug          String
   type          LessonType @default(ARTICLE)
@@ -93,6 +95,8 @@ model Lesson {
 
 
   section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
 
   @@index([sectionId])
   @@schema("course_mgmt")

@@ -586,9 +586,8 @@ export class AuthService {
             },
           });
           // Tính thời gian còn lại (cần hàm helper hoặc thư viện)
-          const remainingTime = ms(user.lockedUntil.getTime() - Date.now(), {
-            long: true,
-          });
+          const remainingMs = user.lockedUntil.getTime() - Date.now();
+          const remainingTime = ms(remainingMs);
           throw new ForbiddenException(
             `Tài khoản đang bị khóa tạm thời. Vui lòng thử lại sau ${remainingTime}.`,
           );

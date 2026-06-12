@@ -85,4 +85,52 @@ export class DashboardController {
     });
     return { totalCourses, totalStudents, totalRevenue, totalCertificates };
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT)
+  @Get('student/stats')
+  async getStudentStats(@Request() req) {
+    const userId = req.user.sub;
+    const [
+      totalEnrolled,
+      completedLessons,
+      totalLessons,
+      totalCertificates,
+      unreadNotifications,
+    ] = await Promise.all([
+      this.prisma.purchase.count({ where: { userId, status: 'COMPLETED' } }),
+      this.prisma.learningProgress.count({
+        where: { userId, status: 'COMPLETED' },
+      }),
+      this.prisma.learningProgress.count({ where: { userId } }),
+      this.prisma.certificate.count({ where: { userId } }),
+      this.prisma.notification.count({ where: { userId, isRead: false } }),
+    ]);
+    return {
+      totalEnrolledCourses: totalEnrolled,
+      completedLessons,
+      totalLessons,
+      totalCertificates,
+      unreadNotifications,
+      pendingExams: 0,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT)
+  @Get('student/recent-courses')
+  async getStudentRecentCourses(@Request() req, @Query('limit') limit = 3) {
+    const purchases = await this.prisma.purchase.findMany({
+      where: { userId: req.user.sub, status: 'COMPLETED' },
+      include: { course: { select: { id: true, title: true } } },
+      orderBy: { purchasedAt: 'desc' },
+      take: Number(limit),
+    });
+    return purchases.map((p) => ({
+      id: p.course.id,
+      title: p.course.title,
+      progress: 0,
+      lastAccessedAt: p.purchasedAt,
+    }));
+  }
 }

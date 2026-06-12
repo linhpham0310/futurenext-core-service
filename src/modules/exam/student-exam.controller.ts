@@ -13,35 +13,20 @@ import { RolesGuard } from '../../shared/guards/roles.guard';
 import { Roles } from '../../shared/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { ExamService } from './exam.service';
+import { PrismaService } from 'prisma/prisma.service';
 
 @Controller('student/exams')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.STUDENT)
 export class StudentExamController {
-  constructor(private examService: ExamService) {}
+  constructor(
+    private examService: ExamService,
+    private prisma: PrismaService,
+  ) {}
 
   @Get()
   async getMyExams(@Request() req) {
-    // Lấy tất cả exam đã publish và được gán cho khóa học mà student đã mua
-    const purchases = await this.prisma.purchase.findMany({
-      where: { userId: req.user.sub, status: 'COMPLETED' },
-      select: { courseId: true },
-    });
-    const courseIds = purchases.map((p) => p.courseId);
-    const exams = await this.prisma.exam.findMany({
-      where: { courseId: { in: courseIds }, isPublished: true },
-    });
-    // Thêm trạng thái của student cho mỗi exam
-    const results = await this.prisma.examResult.findMany({
-      where: { userId: req.user.sub, examId: { in: exams.map((e) => e.id) } },
-    });
-    return exams.map((exam) => ({
-      ...exam,
-      status: results.find((r) => r.examId === exam.id)
-        ? 'COMPLETED'
-        : 'NOT_STARTED',
-      score: results.find((r) => r.examId === exam.id)?.score,
-    }));
+    return this.examService.getExamsByStudent(req.user.sub);
   }
 
   @Get(':id')

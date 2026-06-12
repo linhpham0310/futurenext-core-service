@@ -18,10 +18,8 @@ import { UserConsent } from '../users/entities/user-consent.entity'; // Cần ch
 // Import Strategies và Guards (sẽ tạo ở task sau)
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy'; // <<<--- IMPORT
-import { SharedModule } from '@/shared/shared.module';
 import { UsersModule } from '../users/users.module';
 import { EmailService } from '../notifications/services/email.service'; // đúng path của bạn
-import { MailerModule } from '@nestjs-modules/mailer';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuthListener } from './listeners/auth.listener';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
@@ -60,10 +58,6 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
           },
         };
       },
-    }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: '1d' },
     }),
 
     EventEmitterModule.forRoot(),

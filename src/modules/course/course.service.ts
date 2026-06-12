@@ -281,20 +281,23 @@ export class CourseService {
         { instructor: { fullName: { contains: q, mode: 'insensitive' } } },
       ];
     }
-    const [items, total] = await this.prisma.course.findManyAndCount({
-      where,
-      include: {
-        instructor: {
-          select: { id: true, fullName: true, email: true },
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.course.findMany({
+        where,
+        include: {
+          instructor: {
+            select: { id: true, fullName: true, email: true },
+          },
+          _count: {
+            select: { sections: true, enrollments: true },
+          },
         },
-        _count: {
-          select: { sections: true, enrollments: true },
-        },
-      },
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-    });
+        skip,
+        take: Number(limit),
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.course.count({ where }),
+    ]);
     // Transform revenue (giả sử revenue tính từ enrollments * price)
     const transformed = items.map((course) => ({
       ...course,
@@ -350,16 +353,19 @@ export class CourseService {
         ],
       };
     }
-    const [items, total] = await this.prisma.purchase.findManyAndCount({
-      where,
-      include: {
-        user: { select: { id: true, fullName: true, email: true } },
-        course: { select: { title: true } },
-      },
-      skip,
-      take: limit,
-      distinct: ['userId'],
-    });
+    const [items, total] = await this.prisma.purchase.$transaction([
+      this.prisma.purchase.findMany({
+        where,
+        include: {
+          user: { select: { id: true, fullName: true, email: true } },
+          course: { select: { title: true } },
+        },
+        skip,
+        take: limit,
+        distinct: ['userId'],
+      }),
+      this.prisma.purchase.count({ where }),
+    ]);
     const transformed = items.map((p) => ({
       id: p.user.id,
       fullName: p.user.fullName,
@@ -662,6 +668,7 @@ export class CourseService {
           orderBy: { orderIndex: 'asc' },
           include: { lessons: { orderBy: { orderIndex: 'asc' } } },
         },
+        _count: { select: { purchases: true } },
       },
     });
     if (!course) throw new NotFoundException('Không tìm thấy khóa học');
@@ -672,7 +679,18 @@ export class CourseService {
       });
       isEnrolled = !!purchase;
     }
-    return { ...course, isEnrolled };
+    const totalDuration = course.sections
+      .flatMap((s) => s.lessons)
+      .reduce((sum, l) => sum + (l.duration || 0), 0);
+
+    return {
+      ...course,
+      students: course._count.purchases,
+      duration: `${Math.round(totalDuration / 60)} giờ`,
+      rating: 0,
+      outcomes: (course.outcomes as string[]) || [],
+      isEnrolled,
+    };
   }
 
   async getMyCourses(teacherId: string) {

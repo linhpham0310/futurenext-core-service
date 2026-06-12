@@ -33,7 +33,7 @@ import { StudentController } from './controllers/student.controller';
     AdminTeacherProfilesController,
     StudentController,
   ],
-  providers: [UsersService, UsersAdminController, TeacherProfilesService],
+  providers: [UsersService, TeacherProfilesService],
   exports: [UsersService, TypeOrmModule, TeacherProfilesService],
 })
 export class UsersModule {}

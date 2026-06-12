@@ -9,7 +9,7 @@ export class ReportService {
   async exportRevenue(teacherId: string) {
     const transactions = await this.prisma.revenueTransaction.findMany({
       where: { teacherId, status: 'SUCCESS' },
-      include: { course: true, user: true },
+      include: { course: true },
       orderBy: { createdAt: 'desc' },
     });
     const workbook = new ExcelJS.Workbook();

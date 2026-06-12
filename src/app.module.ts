@@ -18,7 +18,6 @@ import { LxModule } from './modules/lx/lx.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CourseModule } from './modules/course/course.module';
 import { ReportModule } from './modules/report/report.module';
-import { TeacherPaymentModule } from './modules/teacher-payment/teacher-payment.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { CertificateModule } from './modules/certificate/certificate.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -27,6 +26,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { RevenueModule } from './modules/revenue/revenue.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { SearchModule } from './modules/search/search.module';
+import { TeacherPaymentModule } from './modules/payment/teacher-payment.module';
 @Module({
   imports: [
     // --- 1. ConfigModule: Đọc biến môi trường (.env / system) ---

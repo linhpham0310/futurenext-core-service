@@ -9,22 +9,23 @@ import {
   Get,
   Query,
 } from '@nestjs/common';
-import { CourseService } from './course.service';
-import { CreateCourseDto } from './dto/create-course.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CourseOwnershipGuard } from './guards/course-ownership.guard';
-import { CreateSectionDto } from './dto/create-section.dto';
-import { ReorderSectionsDto } from './dto/reorder-sections.dto';
-import { CreateLessonDto } from './dto/create-lesson.dto';
-import { UpdateLessonContentDto } from './dto/update-lesson-content.dto';
-import { UpdateOutcomesDto } from './dto/update-outcomes.dto';
-import { RolesGuard } from '@/shared/guards/roles.guard';
-import { Roles } from '@/shared/decorators/roles.decorator';
-import { ProcessReviewDto } from './dto/process-review.dto';
-import { UserRole } from '../users/entities/user.entity';
-import { UpdateLessonMetadataDto } from './dto/update-lesson-metadata.dto';
-import { SupabaseStorageService } from '../storage/supabase-storage.service';
+
 import { PrismaService } from 'prisma/prisma.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../shared/guards/roles.guard';
+import { Roles } from '../../../shared/decorators/roles.decorator';
+import { CourseService } from '../course.service';
+import { UserRole } from '@/modules/users/entities/user.entity';
+import { CreateCourseDto } from '../dto/create-course.dto';
+import { CreateSectionDto } from '../dto/create-section.dto';
+import { ReorderSectionsDto } from '../dto/reorder-sections.dto';
+import { CreateLessonDto } from '../dto/create-lesson.dto';
+import { UpdateLessonContentDto } from '../dto/update-lesson-content.dto';
+import { SupabaseStorageService } from '@/modules/storage/supabase-storage.service';
+import { CourseOwnershipGuard } from '../guards/course-ownership.guard';
+import { UpdateOutcomesDto } from '../dto/update-outcomes.dto';
+import { ProcessReviewDto } from '../dto/process-review.dto';
+import { UpdateLessonMetadataDto } from '../dto/update-lesson-metadata.dto';
 
 @Controller('courses')
 export class CourseController {
@@ -53,22 +54,49 @@ export class CourseController {
     return this.courseService.getMyCourses(req.user.sub);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT)
+  @Get('my-enrolled')
+  async getMyEnrolledCourses(@Request() req) {
+    return this.courseService.getEnrolledCourses(req.user.sub);
+  }
+
+  @Get('public')
+  async findAllPublic(@Query() query: any) {
+    return this.courseService.findAllPublished(query);
+  }
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Patch(':id')
+  async updateCourse(@Param('id') id: string, @Body() updateData: any) {
+    return this.courseService.update(id, updateData);
+  }
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Get(':id/builder')
+  async getCourseBuilder(@Param('id') id: string) {
+    return this.courseService.getCourseDetailWithFullContent(id);
+  }
+
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Post(':id/sections')
   async addSection(
     @Param('id') courseId: string,
     @Body() dto: CreateSectionDto,
+    @Request() req,
   ) {
-    return this.courseService.addSection(courseId, dto);
+    return this.courseService.addSection(courseId, dto, req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Patch(':id/sections/:sectionId')
   async updateSection(
+    @Param('id') courseId: string,
     @Param('sectionId') sectionId: string,
     @Body() dto: { title: string },
+    @Request() req,
   ) {
-    return this.courseService.updateSection(sectionId, dto);
+    return this.courseService.updateSection(sectionId, dto.title, req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
@@ -76,8 +104,9 @@ export class CourseController {
   async reorderSections(
     @Param('id') courseId: string,
     @Body() dto: ReorderSectionsDto,
+    @Request() req,
   ) {
-    return this.courseService.reorderSections(courseId, dto);
+    return this.courseService.reorderSections(courseId, dto, req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
@@ -85,8 +114,9 @@ export class CourseController {
   async addLesson(
     @Param('sectionId') sectionId: string,
     @Body() dto: CreateLessonDto,
+    @Request() req,
   ) {
-    return this.courseService.addLesson(sectionId, dto);
+    return this.courseService.addLesson(sectionId, dto, req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -101,8 +131,8 @@ export class CourseController {
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Get(':id/lessons/:lessonId')
-  async getLesson(@Param('lessonId') lessonId: string) {
-    return this.courseService.getLessonById(lessonId);
+  async getLesson(@Param('lessonId') lessonId: string, @Request() req) {
+    return this.courseService.getLessonById(lessonId, req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
@@ -110,8 +140,9 @@ export class CourseController {
   async updateLessonContent(
     @Param('lessonId') lessonId: string,
     @Body() dto: UpdateLessonContentDto,
+    @Request() req,
   ) {
-    return this.courseService.updateLessonContent(lessonId, dto);
+    return this.courseService.updateLessonContent(lessonId, dto, req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
@@ -151,18 +182,6 @@ export class CourseController {
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
-  @Patch(':id')
-  async updateCourse(@Param('id') id: string, @Body() updateData: any) {
-    return this.courseService.update(id, updateData);
-  }
-
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
-  @Get(':id/builder')
-  async getCourseBuilder(@Param('id') id: string) {
-    return this.courseService.getCourseDetailWithFullContent(id);
-  }
-
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Get(':id/sections')
   async getSections(@Param('id') courseId: string) {
     return this.courseService.getSections(courseId);
@@ -175,23 +194,6 @@ export class CourseController {
     return this.courseService.getCourseDetailWithFullContent(id);
   }
 
-  @Get(':id')
-  async findOnePublished(@Param('id') id: string) {
-    return this.courseService.findOnePublished(id);
-  }
-
-  @Get('public')
-  async findAllPublic(@Query() query: any) {
-    return this.courseService.findAllPublished(query);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.STUDENT)
-  @Get('my-enrolled')
-  async getMyEnrolledCourses(@Request() req) {
-    return this.courseService.getEnrolledCourses(req.user.sub);
-  }
-
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STUDENT)
   @Post(':id/enroll')
@@ -201,9 +203,10 @@ export class CourseController {
 
   @Get('public/:id')
   async getPublicCourseDetail(@Param('id') id: string, @Request() req) {
-    const userId = req.user?.sub; // có thể undefined
+    const userId = req.user?.sub;
     return this.courseService.findOnePublishedWithEnrollmentStatus(id, userId);
   }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.TEACHER)
   @Get('teacher/students')
@@ -222,26 +225,11 @@ export class CourseController {
   @Roles(UserRole.TEACHER)
   @Get('teacher/dashboard/stats')
   async getTeacherDashboardStats(@Request() req) {
-    const teacherId = req.user.sub;
-    const totalCourses = await this.prisma.course.count({
-      where: { instructorId: teacherId },
-    });
-    const totalStudents = await this.prisma.purchase.count({
-      where: { course: { instructorId: teacherId }, status: 'COMPLETED' },
-      distinct: ['userId'],
-    });
-    const totalRevenue = await this.prisma.purchase.aggregate({
-      _sum: { amount: true },
-      where: { course: { instructorId: teacherId }, status: 'COMPLETED' },
-    });
-    const totalCertificates = await this.prisma.certificate.count({
-      where: { course: { instructorId: teacherId } },
-    });
-    return {
-      totalCourses,
-      totalStudents,
-      totalRevenue: totalRevenue._sum.amount || 0,
-      totalCertificates,
-    };
+    return this.courseService.getTeacherDashboardStats(req.user.sub);
+  }
+
+  @Get(':id')
+  async findOnePublished(@Param('id') id: string) {
+    return this.courseService.findOnePublished(id);
   }
 }

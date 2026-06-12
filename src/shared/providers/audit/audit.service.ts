@@ -24,7 +24,10 @@ export class AuditService {
 
   async log(payload: AuditLogPayload): Promise<void> {
     try {
-      const logEntry = this.auditLogRepository.create(payload);
+      const logEntry = this.auditLogRepository.create({
+        ...payload,
+        meta: payload.meta || payload.details, // merge details vào meta
+      });
       await this.auditLogRepository.save(logEntry);
     } catch (error) {
       this.logger.error(
