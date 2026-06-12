@@ -29,11 +29,4 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(20)
   phone?: string;
-
-  @IsNotEmpty({ message: 'Timestamp updatedAt là bắt buộc để cập nhật.' })
-  @IsISO8601(
-    {},
-    { message: 'Timestamp updatedAt phải là định dạng ISO 8601 hợp lệ.' },
-  )
-  updatedAt: string;
 }

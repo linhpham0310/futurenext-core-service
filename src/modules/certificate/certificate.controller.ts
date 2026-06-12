@@ -15,7 +15,7 @@ export class CertificateController {
   async getCertificates(@Request() req) {
     const certificates = await this.prisma.certificate.findMany({
       where: { course: { instructorId: req.user.sub } },
-      include: { user: true, course: true },
+      include: { course: true },
       orderBy: { issuedAt: 'desc' },
     });
     return certificates.map((c) => ({

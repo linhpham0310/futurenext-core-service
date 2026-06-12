@@ -143,7 +143,6 @@ export class ExamService {
     if (!exam || exam.teacherId !== teacherId) throw new ForbiddenException();
     const results = await this.prisma.examResult.findMany({
       where: { examId },
-      include: { user: { select: { fullName: true, email: true } } },
     });
     return {
       examTitle: exam.title,

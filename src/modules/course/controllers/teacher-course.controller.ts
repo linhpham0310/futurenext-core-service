@@ -88,6 +88,15 @@ export class TeacherCourseController {
     return this.courseService.addSection(courseId, dto, req.user.sub);
   }
 
+  @Patch(':id/sections/reorder')
+  async reorderSections(
+    @Param('id') courseId: string,
+    @Body() dto: ReorderSectionsDto,
+    @Request() req,
+  ) {
+    return this.courseService.reorderSections(courseId, dto, req.user.sub);
+  }
+
   @Patch(':id/sections/:sectionId')
   async updateSection(
     @Param('sectionId') sectionId: string,
@@ -100,15 +109,6 @@ export class TeacherCourseController {
   @Delete(':id/sections/:sectionId')
   async deleteSection(@Param('sectionId') sectionId: string, @Request() req) {
     return this.courseService.deleteSection(sectionId, req.user.sub);
-  }
-
-  @Patch(':id/sections/reorder')
-  async reorderSections(
-    @Param('id') courseId: string,
-    @Body() dto: ReorderSectionsDto,
-    @Request() req,
-  ) {
-    return this.courseService.reorderSections(courseId, dto, req.user.sub);
   }
 
   @Post(':id/sections/:sectionId/lessons')
