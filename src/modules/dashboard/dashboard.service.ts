@@ -3,10 +3,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly dashboardService: DashboardService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAdminStats() {
     const totalUsers = await this.prisma.user.count();

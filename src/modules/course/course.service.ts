@@ -23,7 +23,7 @@ import { sanitize } from '../common/utils/sanitize';
 import ws from 'ws';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { InjectEntityManager } from '@nestjs/typeorm';
-import { EntityManager } from 'typeorm';
+import { EntityManager, In } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 
 @Injectable()
@@ -726,9 +726,11 @@ export class CourseService {
     if (enrollments.length === 0) return [];
 
     // 3. Lấy thông tin user từ TypeORM
-    const userIds = [...new Set(enrollments.map((e) => e.userId))];
+    const userIds: string[] = [
+      ...new Set(enrollments.map((e) => e.userId)),
+    ] as string[];
     const users = await this.entityManager.find(User, {
-      where: userIds.map((id) => ({ id })),
+      where: { id: In(userIds) },
       select: ['id', 'fullName', 'email'],
     });
 

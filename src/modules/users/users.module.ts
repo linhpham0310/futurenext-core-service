@@ -1,7 +1,7 @@
 /**
  * @file Module definition for user-related features (profile, admin management, etc.).
  */
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './services/users.service';
 import { UsersController } from './controllers/users.controller';
@@ -15,6 +15,7 @@ import { AdminTeacherProfilesController } from './controllers/admin-teacher-prof
 import { PrismaModule } from '../../../prisma/prisma.module';
 import { UsersAdminController } from './controllers/users-admin.controller';
 import { StudentController } from './controllers/student.controller';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { StudentController } from './controllers/student.controller';
       TeacherProfile,
     ]),
     PrismaModule,
+    forwardRef(() => AuthModule),
   ],
   controllers: [
     UsersController,

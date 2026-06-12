@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { CourseController } from './course.controller';
 import { CourseService } from './course.service';
 import { PrismaService } from 'prisma/prisma.service';
 import { CourseOwnershipGuard } from './guards/course-ownership.guard';
@@ -18,11 +17,7 @@ import { TeacherCourseController } from './controllers/teacher-course.controller
     SupabaseStorageModule,
     PrismaModule,
   ],
-  controllers: [
-    CourseController,
-    AdminCourseController,
-    TeacherCourseController,
-  ],
+  controllers: [AdminCourseController, TeacherCourseController],
   providers: [
     CourseService,
     PrismaService,

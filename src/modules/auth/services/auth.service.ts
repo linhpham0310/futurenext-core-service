@@ -39,7 +39,6 @@ import { DataSource } from 'typeorm';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { UsersService } from '@/modules/users/services/users.service';
 import { ChangePasswordDto } from '../dto/change-password.dto';
-import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
@@ -620,9 +619,13 @@ export class AuthService {
       // }
 
       // 5. So sánh mật khẩu
+      if (!user.credential) {
+        this.logger.warn(`Login failed: Missing credential for user ${email}`);
+        throw new UnauthorizedException('Email hoặc mật khẩu không đúng.');
+      }
       const isPasswordMatch = await this.hashingService.compare(
         dto.password,
-        user.credential.passwordHash,
+        user.credential!.passwordHash,
       );
 
       // 6. Xử lý khi Mật khẩu SAI
@@ -1161,7 +1164,7 @@ export class AuthService {
 
     const isMatch = await this.hashingService.compare(
       dto.currentPassword,
-      user.credential.passwordHash,
+      user.credential!.passwordHash,
     );
     if (!isMatch) throw new BadRequestException('Mật khẩu hiện tại không đúng');
 

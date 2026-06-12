@@ -9,6 +9,7 @@ import { IngestLessonContextDto } from './dto/ingest-lesson-context.dto';
 import { AiAskDto } from './dto/ai-ask.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 import { SubmitExamDto } from './dto/submit-exam.dto';
+import { LearningProgress } from '@prisma/client';
 
 @Injectable()
 export class LxService {
@@ -143,7 +144,7 @@ export class LxService {
       throw new ForbiddenException('Bạn không có quyền làm bài thi này');
 
     let score = 0;
-    const details = [];
+    const details: any[] = [];
     for (const q of exam.questions) {
       const userAnswer = dto.answers[q.id];
       let isCorrect = false;
@@ -172,8 +173,6 @@ export class LxService {
     });
     return { result, details };
   }
-
-  // Thêm vào lx.service.ts
 
   async getRuntimeOverview(courseId: string, userId: string) {
     // Kiểm tra quyền: đã mua khóa học chưa
@@ -207,7 +206,9 @@ export class LxService {
     const userProgress = await this.prisma.learningProgress.findMany({
       where: { userId, courseId },
     });
-    const progressMap = new Map(userProgress.map((p) => [p.lessonId, p]));
+    const progressMap = new Map<string, LearningProgress>(
+      userProgress.map((p) => [p.lessonId, p]),
+    );
     const sectionsWithProgress = course.sections.map((section) => ({
       ...section,
       lessons: section.lessons.map((lesson) => ({

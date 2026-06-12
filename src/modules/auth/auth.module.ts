@@ -1,5 +1,5 @@
 // src/modules/auth/auth.module.ts
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModuleOptions } from '@nestjs/jwt';
@@ -35,7 +35,7 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
       AuthSession,
       PasswordResetRequest, // Đăng ký luôn nếu thuộc module này
     ]),
-    UsersModule, //  BẮT BUỘC
+    forwardRef(() => UsersModule),
     NotificationsModule,
 
     PassportModule.register({ defaultStrategy: 'jwt' }), // Cấu hình Passport

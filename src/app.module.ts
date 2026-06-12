@@ -27,6 +27,7 @@ import { RevenueModule } from './modules/revenue/revenue.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { SearchModule } from './modules/search/search.module';
 import { TeacherPaymentModule } from './modules/payment/teacher-payment.module';
+import { DashboardService } from './modules/dashboard/dashboard.service';
 @Module({
   imports: [
     // --- 1. ConfigModule: Đọc biến môi trường (.env / system) ---
@@ -158,6 +159,6 @@ import { TeacherPaymentModule } from './modules/payment/teacher-payment.module';
     SearchModule,
   ],
   controllers: [AppController], // Controller cho health check (nếu có)
-  providers: [AppService], // Không dùng global guard cho Throttler
+  providers: [AppService, DashboardService], // Không dùng global guard cho Throttler
 })
 export class AppModule {}

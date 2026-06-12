@@ -92,7 +92,7 @@ export class ExamService {
       where: { examId_userId: { examId, userId: studentId } },
     });
     if (existing) throw new ForbiddenException('Bạn đã nộp bài rồi');
-    let score = null;
+    let score: number | null = null;
     if (exam.type === 'MCQ') {
       const questions = exam.questions as any[];
       let correct = 0;
@@ -163,7 +163,7 @@ export class ExamService {
     numQuestions: number,
   ) {
     // TODO: Gọi AI service
-    const questions = [];
+    const questions: any[] = [];
     for (let i = 0; i < numQuestions; i++) {
       questions.push({
         id: `q${i}`,
@@ -185,7 +185,7 @@ export class ExamService {
     difficulty: string,
   ) {
     // TODO: Gọi AI service
-    const questions = [];
+    const questions: any[] = [];
     for (let i = 0; i < numQuestions; i++) {
       questions.push({
         question_text: `Câu hỏi về: ${content.substring(0, 50)}...`,
