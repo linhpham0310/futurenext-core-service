@@ -31,7 +31,7 @@ jobs:
 
       # 1. Bước Linting (NEW - S5-CM-02)
       - name: Run Lint
-        run: npm run lint
+        run: npm run lint:ci
 
       # 2. Bước Unit Test (NEW - S5-CM-02)
       - name: Run Unit Tests
@@ -64,7 +64,3 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/futurenext-backend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/futurenext-backend:${{ github.sha }}
-
-          # TASK S5-CM-04: Đảm bảo build có kèm các file migration mới nhất
-          build-args: |
-            DATABASE_URL=${{ secrets.DATABASE_URL_PROD }}
