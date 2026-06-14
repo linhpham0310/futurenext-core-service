@@ -18,7 +18,6 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/guards/roles.guard';
 import { Roles } from '../../../shared/decorators/roles.decorator';
 import { UserRole, UserStatus } from '../entities/user.entity';
@@ -32,10 +31,7 @@ import {
   SubmitTeacherProfileDto,
   UpdateTeacherProfileDto,
 } from '../dto/teacher-profile.dto';
-import {
-  GetTeacherProfilesFilterDto,
-  ReviewTeacherProfileDto,
-} from '../dto/admin-teacher-profile.dto';
+import { GetTeacherProfilesFilterDto } from '../dto/admin-teacher-profile.dto';
 import { UserQueryDto } from '../dto/user-query.dto';
 import { UpdateRoleDto } from '../dto/update-role.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
@@ -43,6 +39,8 @@ import { UpdateUserFullDto } from '../dto/update-user-full.dto';
 import { UpdateStudentStatusDto } from '../dto/update-student-status.dto';
 import { CreateReviewDto } from '../dto/create-review.dto';
 import { CurrentUser } from '../../../shared/decorators/current-user.decorator';
+import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
+import { TeacherProfileStatus } from '../entities/teacher-profile.entity';
 
 // ==================== 1. USER CONTROLLER (Profile, self-management) ====================
 @Controller('users')
@@ -254,7 +252,7 @@ export class AdminTeacherProfilesController {
       req.user.sub,
       id,
       {
-        status: 'approved',
+        status: TeacherProfileStatus.APPROVED,
       },
     );
     return result;
@@ -270,7 +268,7 @@ export class AdminTeacherProfilesController {
       req.user.sub,
       id,
       {
-        status: 'rejected',
+        status: TeacherProfileStatus.REJECTED,
         reason,
       },
     );

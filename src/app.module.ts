@@ -57,10 +57,12 @@ import { ReportModule } from './modules/report/report.module';
       verboseMemoryLeak: false,
       ignoreErrors: false,
     }),
-    ThrottlerModule.forRoot({
-      ttl: 60,
-      limit: 100,
-    }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
     SharedModule,
     AuthModule,
     UsersModule,
