@@ -1,3 +1,4 @@
+// src/modules/dashboard/dashboard.service.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
@@ -16,10 +17,7 @@ export class DashboardService {
       (
         await this.prisma.purchase.aggregate({
           _sum: { amount: true },
-          where: {
-            purchasedAt: { gte: startOfMonth },
-            status: 'COMPLETED',
-          },
+          where: { purchasedAt: { gte: startOfMonth }, status: 'COMPLETED' },
         })
       )._sum.amount || 0;
 
@@ -42,7 +40,7 @@ export class DashboardService {
     };
   }
 
-  async getRecentActivities(limit = 10) {
+  async getRecentActivities(limit: number = 10) {
     const logs = await this.prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
       take: Number(limit),
@@ -62,12 +60,7 @@ export class DashboardService {
     });
 
     const totalStudents = await this.prisma.purchase.count({
-      where: {
-        course: {
-          instructorId: teacherId,
-        },
-        status: 'COMPLETED',
-      },
+      where: { course: { instructorId: teacherId }, status: 'COMPLETED' },
       distinct: ['userId'],
     });
 
@@ -75,28 +68,57 @@ export class DashboardService {
       (
         await this.prisma.purchase.aggregate({
           _sum: { amount: true },
-          where: {
-            course: {
-              instructorId: teacherId,
-            },
-            status: 'COMPLETED',
-          },
+          where: { course: { instructorId: teacherId }, status: 'COMPLETED' },
         })
       )._sum.amount || 0;
 
     const totalCertificates = await this.prisma.certificate.count({
-      where: {
-        course: {
-          instructorId: teacherId,
-        },
-      },
+      where: { course: { instructorId: teacherId } },
     });
 
-    return {
-      totalCourses,
-      totalStudents,
-      totalRevenue,
+    return { totalCourses, totalStudents, totalRevenue, totalCertificates };
+  }
+
+  async getStudentStats(userId: string) {
+    const [
+      totalEnrolled,
+      completedLessons,
+      totalLessons,
       totalCertificates,
+      unreadNotifications,
+    ] = await Promise.all([
+      this.prisma.purchase.count({ where: { userId, status: 'COMPLETED' } }),
+      this.prisma.learningProgress.count({
+        where: { userId, status: 'COMPLETED' },
+      }),
+      this.prisma.learningProgress.count({ where: { userId } }),
+      this.prisma.certificate.count({ where: { userId } }),
+      this.prisma.notification.count({ where: { userId, isRead: false } }),
+    ]);
+
+    return {
+      totalEnrolledCourses: totalEnrolled,
+      completedLessons,
+      totalLessons,
+      totalCertificates,
+      unreadNotifications,
+      pendingExams: 0,
     };
+  }
+
+  async getStudentRecentCourses(userId: string, limit: number = 3) {
+    const purchases = await this.prisma.purchase.findMany({
+      where: { userId, status: 'COMPLETED' },
+      include: { course: { select: { id: true, title: true } } },
+      orderBy: { purchasedAt: 'desc' },
+      take: Number(limit),
+    });
+
+    return purchases.map((p) => ({
+      id: p.course.id,
+      title: p.course.title,
+      progress: 0,
+      lastAccessedAt: p.purchasedAt,
+    }));
   }
 }

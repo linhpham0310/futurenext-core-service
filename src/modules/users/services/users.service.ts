@@ -1,25 +1,18 @@
-/**
- * @file Service responsible for user-related business logic (profile, admin actions, etc.).
- */
+// src/modules/users/services/users.service.ts
 import {
   Injectable,
   Logger,
   NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
-import { User } from '../entities/user.entity'; // Import User entity
-import { UpdateProfileDto } from '../dto/update-profile.dto'; // Import DTO
-import {
-  AuditService,
-  AuditLogPayload,
-} from '@/shared/providers/audit/audit.service'; // Import AuditService
-import { UserRole, UserStatus } from '@/modules/users/entities/user.entity';
+import { User } from '../entities/user.entity';
+import { UpdateProfileDto } from '../dto/update-profile.dto';
+import { AuditService } from '@/shared/providers/audit/audit.service';
+import { UserRole, UserStatus } from '../entities/user.entity';
 import { UserQueryDto } from '../dto/user-query.dto';
-import { PrismaService } from 'prisma/prisma.service';
+import { PrismaService } from '../../../../prisma/prisma.service';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { UpdateUserFullDto } from '../dto/update-user-full.dto';
 
@@ -30,21 +23,15 @@ export class UsersService {
   constructor(
     @InjectEntityManager()
     private readonly entityManager: EntityManager,
-
     @InjectRepository(User)
-    private readonly userRepository: Repository<User>, // ✅ ĐÚNG CHỖ
-
+    private readonly userRepository: Repository<User>,
     private readonly auditService: AuditService,
     private prisma: PrismaService,
   ) {}
 
   async findOneByEmail(email: string): Promise<User | null> {
-    return this.userRepository.findOne({
-      where: { email },
-    });
+    return this.userRepository.findOne({ where: { email } });
   }
-
-  // Thêm vào users.service.ts
 
   async findProfileById(userId: string): Promise<Partial<User>> {
     const user = await this.userRepository.findOne({
@@ -55,6 +42,7 @@ export class UsersService {
         'email',
         'avatarUrl',
         'role',
+        'status',
         'createdAt',
         'updatedAt',
         'locale',
@@ -71,11 +59,12 @@ export class UsersService {
     dto: UpdateProfileDto,
   ): Promise<Partial<User>> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException();
+    if (!user) throw new NotFoundException('User not found');
     if (dto.fullName !== undefined) user.fullName = dto.fullName;
     if (dto.avatarUrl !== undefined) user.avatarUrl = dto.avatarUrl;
     if (dto.phone !== undefined) user.phone = dto.phone;
     await this.userRepository.save(user);
+    // Ghi audit
     this.auditService.log({ action: 'user.profile.updated', actorId: userId });
     return this.findProfileById(userId);
   }

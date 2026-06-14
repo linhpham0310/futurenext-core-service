@@ -1,4 +1,14 @@
-import { IsEnum, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+  IsObject,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { ProgressMetadata } from '../types/lx.type';
 
 export enum LessonProgressStatus {
   NOT_STARTED = 'NOT_STARTED',
@@ -20,4 +30,10 @@ export class UpdateProgressDto {
   @IsNumber()
   @Min(0)
   lastPosition?: number;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => Object)
+  metadata?: ProgressMetadata;
 }

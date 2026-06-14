@@ -1,10 +1,20 @@
+// src/app.controller.ts
 import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  @Get('health')
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
   @HttpCode(HttpStatus.OK)
-  getHealth(): { status: string } {
-    return { status: 'ok' };
+  getHealthCheck(): { status: string; timestamp: string } {
+    return this.appService.getHealthCheck();
+  }
+
+  @Get('ping')
+  @HttpCode(HttpStatus.OK)
+  ping(): { message: string } {
+    return { message: 'pong' };
   }
 }

@@ -24,9 +24,13 @@ export class ResetPasswordDto {
   @IsString()
   @IsNotEmpty()
   @Length(8, 50, { message: 'Mật khẩu phải từ 8-50 ký tự.' })
-  @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
-    message: 'Mật khẩu phải bao gồm chữ hoa, chữ thường và số/ký tự đặc biệt.',
-  })
+  @Matches(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+    {
+      message:
+        'Mật khẩu mới phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt',
+    },
+  )
   newPassword: string;
 
   @IsString()

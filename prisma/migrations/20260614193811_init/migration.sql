@@ -1,10 +1,18 @@
-/*
-  Warnings:
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "course_mgmt";
 
-  - You are about to drop the `lx_purchases` table. If the table is not empty, all the data it contains will be lost.
-  - Added the required column `updatedAt` to the `lessons` table without a default value. This is not possible if the table is not empty.
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "lx";
 
-*/
+-- CreateEnum
+CREATE TYPE "course_mgmt"."CourseStatus" AS ENUM ('DRAFT', 'SUBMITTED', 'PUBLISHED', 'REJECTED', 'ARCHIVED');
+
+-- CreateEnum
+CREATE TYPE "course_mgmt"."LessonType" AS ENUM ('VIDEO', 'ARTICLE', 'QUIZ', 'LAB');
+
+-- CreateEnum
+CREATE TYPE "lx"."ProgressStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED');
+
 -- CreateEnum
 CREATE TYPE "public"."ExamType" AS ENUM ('MCQ', 'ESSAY', 'MIXED');
 
@@ -20,17 +28,116 @@ CREATE TYPE "public"."TransactionType" AS ENUM ('PURCHASE', 'REFUND');
 -- CreateEnum
 CREATE TYPE "public"."TransactionStatus" AS ENUM ('SUCCESS', 'FAILED', 'PENDING');
 
--- AlterEnum
-ALTER TYPE "course_mgmt"."LessonType" ADD VALUE 'LAB';
+-- CreateTable
+CREATE TABLE "course_mgmt"."courses" (
+    "id" TEXT NOT NULL,
+    "instructorId" TEXT NOT NULL,
+    "title" VARCHAR(255) NOT NULL,
+    "slug" TEXT NOT NULL,
+    "description" TEXT,
+    "thumbnailUrl" TEXT,
+    "price" DECIMAL(12,2) NOT NULL DEFAULT 0.0,
+    "status" "course_mgmt"."CourseStatus" NOT NULL DEFAULT 'DRAFT',
+    "outcomes" JSONB,
+    "aiMetadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
--- AlterTable
-ALTER TABLE "course_mgmt"."lessons" ADD COLUMN     "aiMetadata" JSONB NOT NULL DEFAULT '[]',
-ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL,
-ALTER COLUMN "type" SET DEFAULT 'ARTICLE';
+    CONSTRAINT "courses_pkey" PRIMARY KEY ("id")
+);
 
--- DropTable
-DROP TABLE "lx"."lx_purchases";
+-- CreateTable
+CREATE TABLE "course_mgmt"."sections" (
+    "id" TEXT NOT NULL,
+    "courseId" TEXT NOT NULL,
+    "title" VARCHAR(255) NOT NULL,
+    "orderIndex" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "sections_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "course_mgmt"."lessons" (
+    "id" TEXT NOT NULL,
+    "sectionId" TEXT NOT NULL,
+    "courseId" TEXT NOT NULL,
+    "title" VARCHAR(255) NOT NULL,
+    "slug" TEXT NOT NULL,
+    "type" "course_mgmt"."LessonType" NOT NULL DEFAULT 'ARTICLE',
+    "content" TEXT,
+    "duration" INTEGER DEFAULT 0,
+    "orderIndex" INTEGER NOT NULL DEFAULT 0,
+    "isFreePreview" BOOLEAN NOT NULL DEFAULT false,
+    "aiMetadata" JSONB NOT NULL DEFAULT '[]',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "lessons_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "course_mgmt"."curriculum_mappings" (
+    "id" TEXT NOT NULL,
+    "courseId" TEXT NOT NULL,
+    "keyConcept" TEXT NOT NULL,
+    "taxonomyLevel" INTEGER NOT NULL DEFAULT 1,
+
+    CONSTRAINT "curriculum_mappings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "course_mgmt"."course_review_logs" (
+    "id" TEXT NOT NULL,
+    "courseId" TEXT NOT NULL,
+    "adminId" TEXT NOT NULL,
+    "action" "course_mgmt"."CourseStatus" NOT NULL,
+    "reason" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "course_review_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "lx"."lx_learning_progress" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "courseId" TEXT NOT NULL,
+    "lessonId" TEXT NOT NULL,
+    "status" "lx"."ProgressStatus" NOT NULL DEFAULT 'NOT_STARTED',
+    "lastPosition" INTEGER NOT NULL DEFAULT 0,
+    "score" DECIMAL(5,2),
+    "metadata" JSONB DEFAULT '{}',
+    "completedAt" TIMESTAMP(3),
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "lx_learning_progress_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "lx"."lx_ai_interactions" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "lesson_id" TEXT NOT NULL,
+    "interaction_type" VARCHAR(20) NOT NULL,
+    "prompt" TEXT NOT NULL,
+    "response" TEXT NOT NULL,
+    "context_snapshot" JSONB DEFAULT '{}',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "lx_ai_interactions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "lx"."lx_lesson_contexts" (
+    "id" TEXT NOT NULL,
+    "lesson_id" TEXT NOT NULL,
+    "chunk_index" INTEGER NOT NULL,
+    "content_chunk" TEXT NOT NULL,
+    "metadata" JSONB DEFAULT '{}',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "lx_lesson_contexts_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "lx"."purchases" (
@@ -191,6 +298,39 @@ CREATE TABLE "public"."transactions" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "courses_slug_key" ON "course_mgmt"."courses"("slug");
+
+-- CreateIndex
+CREATE INDEX "courses_instructorId_idx" ON "course_mgmt"."courses"("instructorId");
+
+-- CreateIndex
+CREATE INDEX "courses_status_idx" ON "course_mgmt"."courses"("status");
+
+-- CreateIndex
+CREATE INDEX "sections_courseId_idx" ON "course_mgmt"."sections"("courseId");
+
+-- CreateIndex
+CREATE INDEX "lessons_sectionId_idx" ON "course_mgmt"."lessons"("sectionId");
+
+-- CreateIndex
+CREATE INDEX "curriculum_mappings_courseId_idx" ON "course_mgmt"."curriculum_mappings"("courseId");
+
+-- CreateIndex
+CREATE INDEX "lx_learning_progress_userId_courseId_idx" ON "lx"."lx_learning_progress"("userId", "courseId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "lx_learning_progress_userId_lessonId_key" ON "lx"."lx_learning_progress"("userId", "lessonId");
+
+-- CreateIndex
+CREATE INDEX "lx_ai_interactions_user_id_lesson_id_idx" ON "lx"."lx_ai_interactions"("user_id", "lesson_id");
+
+-- CreateIndex
+CREATE INDEX "lx_lesson_contexts_lesson_id_idx" ON "lx"."lx_lesson_contexts"("lesson_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "lx_lesson_contexts_lesson_id_chunk_index_key" ON "lx"."lx_lesson_contexts"("lesson_id", "chunk_index");
+
+-- CreateIndex
 CREATE INDEX "purchases_userId_idx" ON "lx"."purchases"("userId");
 
 -- CreateIndex
@@ -252,6 +392,21 @@ CREATE INDEX "questions_examId_idx" ON "public"."questions"("examId");
 
 -- CreateIndex
 CREATE INDEX "transactions_userId_idx" ON "public"."transactions"("userId");
+
+-- AddForeignKey
+ALTER TABLE "course_mgmt"."sections" ADD CONSTRAINT "sections_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "course_mgmt"."lessons" ADD CONSTRAINT "lessons_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "course_mgmt"."sections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "course_mgmt"."lessons" ADD CONSTRAINT "lessons_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "course_mgmt"."curriculum_mappings" ADD CONSTRAINT "curriculum_mappings_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "course_mgmt"."course_review_logs" ADD CONSTRAINT "course_review_logs_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "lx"."purchases" ADD CONSTRAINT "purchases_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;

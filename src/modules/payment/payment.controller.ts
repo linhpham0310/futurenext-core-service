@@ -1,19 +1,24 @@
 import { Controller, Get, Put, Body, UseGuards, Request } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
+import { RolesGuard } from '../../shared/guards/roles.guard';
+import { Roles } from '../../shared/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 import { PaymentService } from './payment.service';
+import { UpdatePaymentSettingDto } from './dto/update-payment-setting.dto';
 
-@Controller('payment')
-@UseGuards(JwtAuthGuard)
+@Controller('teacher/payment-settings')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.TEACHER)
 export class PaymentController {
-  constructor(private paymentService: PaymentService) {}
+  constructor(private readonly paymentService: PaymentService) {}
 
-  @Get('settings')
+  @Get()
   async getSettings(@Request() req) {
     return this.paymentService.getSettings(req.user.sub);
   }
 
-  @Put('settings')
-  async updateSettings(@Request() req, @Body() data: any) {
-    return this.paymentService.updateSettings(req.user.sub, data);
+  @Put()
+  async updateSettings(@Request() req, @Body() dto: UpdatePaymentSettingDto) {
+    return this.paymentService.updateSettings(req.user.sub, dto);
   }
 }

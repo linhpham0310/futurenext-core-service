@@ -1,15 +1,17 @@
 import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/guards/roles.guard';
 import { Roles } from '../../shared/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { RevenueService } from './revenue.service';
+import { PaginationQueryDto } from './dto/revenue-query.dto';
 
 @Controller('revenue')
 @UseGuards(JwtAuthGuard)
 export class RevenueController {
-  constructor(private revenueService: RevenueService) {}
+  constructor(private readonly revenueService: RevenueService) {}
 
+  // ==================== ADMIN ENDPOINTS ====================
   @Get('admin/stats')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -20,18 +22,17 @@ export class RevenueController {
   @Get('admin/transactions')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
-  async getAdminTransactions(
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
-  ) {
-    return this.revenueService.getAdminTransactions(+page, +limit);
+  async getAdminTransactions(@Query() query: PaginationQueryDto) {
+    return this.revenueService.getAdminTransactions(query.page, query.limit);
   }
 
+  // ==================== TEACHER ENDPOINTS ====================
   @Get('teacher/stats')
   @UseGuards(RolesGuard)
   @Roles(UserRole.TEACHER)
   async getTeacherStats(@Request() req) {
-    return this.revenueService.getTeacherStats(req.user.sub);
+    const teacherId = req.user.sub;
+    return this.revenueService.getTeacherStats(teacherId);
   }
 
   @Get('teacher/transactions')
@@ -39,13 +40,13 @@ export class RevenueController {
   @Roles(UserRole.TEACHER)
   async getTeacherTransactions(
     @Request() req,
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query() query: PaginationQueryDto,
   ) {
+    const teacherId = req.user.sub;
     return this.revenueService.getTeacherTransactions(
-      req.user.sub,
-      +page,
-      +limit,
+      teacherId,
+      query.page,
+      query.limit,
     );
   }
 }

@@ -16,6 +16,7 @@ export class SearchService {
       },
       select: { id: true, title: true, thumbnailUrl: true },
     });
+
     const students = await this.prisma.purchase.findMany({
       where: {
         course: { instructorId: teacherId },
@@ -29,6 +30,7 @@ export class SearchService {
       distinct: ['userId'],
       include: { user: { select: { id: true, fullName: true, email: true } } },
     });
+
     const results = [
       ...courses.map((c) => ({
         id: c.id,
@@ -49,10 +51,10 @@ export class SearchService {
   async searchCourses(q: string, page = 1, limit = 10) {
     const skip = (page - 1) * limit;
     const where = {
-      status: 'PUBLISHED' as any,
+      status: 'PUBLISHED',
       OR: [
-        { title: { contains: q, mode: 'insensitive' as any } },
-        { description: { contains: q, mode: 'insensitive' as any } },
+        { title: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
       ],
     };
     const [items, total] = await Promise.all([

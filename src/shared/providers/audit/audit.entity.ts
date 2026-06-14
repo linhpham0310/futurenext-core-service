@@ -23,7 +23,6 @@ export class SecurityAuditLog {
   @Index('idx_security_audit_logs_actor_id')
   actorId?: string;
 
-  // onDelete: 'SET NULL' giữ lại log dù actor bị xóa
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL', eager: false }) // eager: false để không tự load user
   @JoinColumn({ name: 'actor_id' })
   actor?: User;
@@ -38,7 +37,6 @@ export class SecurityAuditLog {
   @Column('varchar', { name: 'user_agent', length: 512, nullable: true })
   userAgent?: string;
 
-  // jsonb cho phép index và query hiệu quả
   @Column('jsonb', { nullable: true })
   meta?: Record<string, any>;
 

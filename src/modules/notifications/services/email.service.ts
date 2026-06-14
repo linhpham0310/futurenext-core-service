@@ -1,37 +1,24 @@
-/**
- * @file Placeholder service for sending emails.
- * In development, it logs email content to the console.
- * Should be replaced with actual email sending logic (e.g., using Nodemailer and an SMTP provider or transactional email API).
- */
 import { Injectable, Logger } from '@nestjs/common';
-import { MailerService } from '@nestjs-modules/mailer'; // Inject MailerService
-import { User } from '@/modules/users/entities/user.entity';
+import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
+import { User } from '../../users/entities/user.entity';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
   constructor(
-    private readonly mailerService: MailerService, // Injected MailerService instance
-    private readonly configService: ConfigService, // To get default FROM address if needed
+    private readonly mailerService: MailerService,
+    private readonly configService: ConfigService,
   ) {}
 
-  /**
-   * Sends the email verification email containing the OTP via the configured SMTP transport.
-   * @param user - The recipient user object containing name and email.
-   * @param otp - The plain text OTP code (6 digits).
-   * @throws Error if email sending fails via MailerService, allowing the listener to handle it.
-   */
   async sendVerificationEmail(user: User, otp: string): Promise<void> {
     const subject = `[FutureNext] Mã kích hoạt tài khoản của bạn`;
     const fromAddress = this.configService.get<string>('SMTP_FROM');
 
-    // Basic, clean HTML template for verification
     const htmlContent = `
       <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.7; color: #333; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
         <div style="background-color: #f8f9fa; padding: 20px; text-align: center;">
-           {/* TODO: Add Logo here */}
            <h1 style="color: #0d6efd; margin: 0; font-size: 24px;">FutureNext.ai</h1>
         </div>
         <div style="padding: 30px;">
@@ -50,41 +37,30 @@ export class EmailService {
       </div>
     `;
 
-    this.logger.log(
-      `Attempting to send verification email via MailerService to ${user.email}`,
-    );
+    this.logger.log(`Attempting to send verification email to ${user.email}`);
     try {
-      // Send mail using the configured transport
       const result = await this.mailerService.sendMail({
         to: user.email,
-        from: fromAddress, // Optional if default is set in module config
-        subject: subject,
+        from: fromAddress,
+        subject,
         html: htmlContent,
       });
       this.logger.log(
-        `Verification email successfully sent to ${user.email}. Message ID: ${result.messageId}`,
+        `Verification email sent to ${user.email}. Message ID: ${result.messageId}`,
       );
     } catch (error) {
       this.logger.error(
-        `Failed to send verification email to ${user.email} via MailerService:`,
+        `Failed to send verification email to ${user.email}:`,
         error.stack,
       );
-      // Re-throw for the listener to catch and perform failed audit logging
       throw error;
     }
   }
 
-  /**
-   * Sends the password reset email containing the OTP via the configured SMTP transport.
-   * @param user - The recipient user object.
-   * @param otp - The plain text OTP code (6 digits).
-   * @throws Error if email sending fails via MailerService.
-   */
   async sendPasswordResetEmail(user: User, otp: string): Promise<void> {
     const subject = `[FutureNext] Yêu cầu đặt lại mật khẩu của bạn`;
     const fromAddress = this.configService.get<string>('SMTP_FROM');
 
-    // Basic HTML template for password reset
     const htmlContent = `
      <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.7; color: #333; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
         <div style="background-color: #f8f9fa; padding: 20px; text-align: center;">
@@ -106,25 +82,23 @@ export class EmailService {
       </div>
     `;
 
-    this.logger.log(
-      `Attempting to send password reset email via MailerService to ${user.email}`,
-    );
+    this.logger.log(`Attempting to send password reset email to ${user.email}`);
     try {
       const result = await this.mailerService.sendMail({
         to: user.email,
         from: fromAddress,
-        subject: subject,
+        subject,
         html: htmlContent,
       });
       this.logger.log(
-        `Password reset email successfully sent to ${user.email}. Message ID: ${result.messageId}`,
+        `Password reset email sent to ${user.email}. Message ID: ${result.messageId}`,
       );
     } catch (error) {
       this.logger.error(
-        `Failed to send password reset email to ${user.email} via MailerService:`,
+        `Failed to send password reset email to ${user.email}:`,
         error.stack,
       );
-      throw error; // Re-throw for listener
+      throw error;
     }
   }
 }

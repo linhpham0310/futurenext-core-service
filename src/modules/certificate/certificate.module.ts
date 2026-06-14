@@ -1,10 +1,12 @@
+// src/modules/certificate/certificate.module.ts
 import { Module } from '@nestjs/common';
-import { CertificateController } from './certificate.controller';
 import { PrismaModule } from '../../../prisma/prisma.module';
-import { TeacherCertificateController } from './teacher-certificate.controller';
+import { CertificateController } from './certificate.controller';
+import { CertificateService } from './certificate.service';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [CertificateController, TeacherCertificateController],
+  controllers: [CertificateController],
+  providers: [CertificateService],
 })
 export class CertificateModule {}

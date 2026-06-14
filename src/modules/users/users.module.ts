@@ -4,18 +4,20 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './services/users.service';
-import { UsersController } from './controllers/users.controller';
 import { User } from './entities/user.entity';
 import { UserCredential } from './entities/user-credential.entity';
 import { UserConsent } from './entities/user-consent.entity';
 import { TeacherProfile } from './entities/teacher-profile.entity';
-import { TeacherProfilesController } from './controllers/teacher-profiles.controller';
 import { TeacherProfilesService } from './services/teacher-profiles.service';
-import { AdminTeacherProfilesController } from './controllers/admin-teacher-profiles.controller';
 import { PrismaModule } from '../../../prisma/prisma.module';
-import { UsersAdminController } from './controllers/users-admin.controller';
-import { StudentController } from './controllers/student.controller';
 import { AuthModule } from '../auth/auth.module';
+import {
+  UsersController,
+  UsersAdminController,
+  TeacherProfilesController,
+  AdminTeacherProfilesController,
+  StudentController,
+} from './controllers/users.controller';
 
 @Module({
   imports: [

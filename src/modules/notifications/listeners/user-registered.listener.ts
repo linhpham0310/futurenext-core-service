@@ -1,15 +1,11 @@
-/**
- * @file Listener for the 'user.registered' event.
- * Triggers sending the verification email and logs the outcome.
- */
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
   AuditService,
   AuditLogPayload,
-} from '@/shared/providers/audit/audit.service'; // Import AuditService
-import { EmailService } from '../services/email.service'; // Import EmailService
-import { User } from '@/modules/users/entities/user.entity';
+} from '../../../shared/providers/audit/audit.service';
+import { EmailService } from '../services/email.service';
+import { User } from '../../users/entities/user.entity';
 
 @Injectable()
 export class UserRegisteredListener {
@@ -17,14 +13,10 @@ export class UserRegisteredListener {
 
   constructor(
     private readonly emailService: EmailService,
-    private readonly auditService: AuditService, // Inject AuditService
+    private readonly auditService: AuditService,
   ) {}
 
-  /**
-   * Handles the 'user.registered' event asynchronously.
-   * @param payload - Contains the newly registered user and the plain OTP.
-   */
-  @OnEvent('user.registered', { async: true }) // async: true để chạy bất đồng bộ, không block AuthService
+  @OnEvent('user.registered', { async: true })
   async handleUserRegisteredEvent(payload: {
     user: User;
     otp: string;
@@ -39,29 +31,22 @@ export class UserRegisteredListener {
     };
 
     try {
-      // Gọi EmailService để gửi email
       await this.emailService.sendVerificationEmail(payload.user, payload.otp);
-      this.logger.log(
-        `Verification email ostensibly sent to: ${payload.user.email}`,
-      );
-      // Ghi log audit thành công (BR-Audit email sent) [cite: 2031, 2053]
+      this.logger.log(`Verification email sent to: ${payload.user.email}`);
       auditAction = 'email.verification.sent';
     } catch (error) {
       this.logger.error(
         `Failed to send verification email to ${payload.user.email}:`,
         error.stack,
       );
-      // Ghi log audit thất bại [cite: 2031, 2056]
       auditAction = 'email.verification.failed';
-      auditMeta.error = error.message; // Thêm chi tiết lỗi vào meta
+      auditMeta.error = error.message;
     }
 
-    // Ghi log audit (thành công hoặc thất bại)
     const auditPayload: AuditLogPayload = {
       action: auditAction,
-      actorId: payload.user.id, // User vừa đăng ký là actor của event này
+      actorId: payload.user.id,
       meta: auditMeta,
-      // Không cần IP/UA ở đây vì log này ghi nhận kết quả của hành động server-side
     };
     this.auditService.log(auditPayload);
   }

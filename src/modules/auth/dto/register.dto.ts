@@ -31,14 +31,18 @@ export class RegisterDto {
   @IsString({ message: 'Mật khẩu phải là chuỗi ký tự.' })
   @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự.' }) // BR: Password Policy - Min Length [cite: 1998]
   @MaxLength(100, { message: 'Mật khẩu không được vượt quá 100 ký tự.' }) // Limit length for safety
-  @Matches(/^(?=.*[A-Za-z])(?=.*\d)/, {
-    message: 'Mật khẩu phải chứa ít nhất 1 chữ cái và 1 chữ số.',
-  })
+  @Matches(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+    {
+      message:
+        'Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt',
+    },
+  )
   @MaxLength(100, { message: 'Mật khẩu không được vượt quá 100 ký tự.' }) // Added reasonable max length
   password: string;
 
   @IsOptional()
-  @IsString({ message: 'Xác nhận mật khẩu phải là chuỗi ký tự.' })
+  @IsString()
   @ValidateIf((o) => o.confirmPassword !== undefined)
   confirmPassword?: string;
 

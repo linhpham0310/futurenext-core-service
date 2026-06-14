@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { CreateNotificationDto } from './dto/create-notification.dto';
 
 @Injectable()
 export class NotificationService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getUserNotifications(userId: string, limit = 20) {
     return this.prisma.notification.findMany({
@@ -36,14 +37,15 @@ export class NotificationService {
     return { success: true };
   }
 
-  async createNotification(
-    userId: string,
-    title: string,
-    description: string,
-    link?: string,
-  ) {
+  async createNotification(dto: CreateNotificationDto) {
     return this.prisma.notification.create({
-      data: { userId, title, description, link, isRead: false },
+      data: {
+        userId: dto.userId,
+        title: dto.title,
+        description: dto.description,
+        link: dto.link,
+        isRead: dto.isRead || false,
+      },
     });
   }
 
@@ -52,11 +54,11 @@ export class NotificationService {
     courseTitle: string,
     courseId: string,
   ) {
-    return this.createNotification(
-      teacherId,
-      'Học viên mới đăng ký',
-      `Một học viên vừa đăng ký khóa học "${courseTitle}"`,
-      `/teacher/courses/${courseId}/students`,
-    );
+    return this.createNotification({
+      userId: teacherId,
+      title: 'Học viên mới đăng ký',
+      description: `Một học viên vừa đăng ký khóa học "${courseTitle}"`,
+      link: `/teacher/courses/${courseId}/students`,
+    });
   }
 }

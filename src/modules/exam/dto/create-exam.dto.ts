@@ -1,4 +1,3 @@
-// src/modules/exam/dto/create-exam.dto.ts
 import {
   IsString,
   IsNotEmpty,
@@ -9,6 +8,7 @@ import {
   IsArray,
   ValidateNested,
   IsUUID,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -18,10 +18,10 @@ export enum ExamType {
   MIXED = 'MIXED',
 }
 
-class QuestionDto {
+export class QuestionDto {
   @IsOptional()
   @IsUUID()
-  id: string;
+  id?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -32,6 +32,7 @@ class QuestionDto {
 
   @IsArray()
   @IsOptional()
+  @IsString({ each: true })
   options?: string[];
 
   @IsString()
@@ -41,6 +42,11 @@ class QuestionDto {
   @IsString()
   @IsOptional()
   explanation?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  points?: number;
 }
 
 export class CreateExamDto {

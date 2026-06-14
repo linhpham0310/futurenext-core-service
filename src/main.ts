@@ -1,54 +1,52 @@
 // src/main.ts
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
-import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
 import { ConfigService } from '@nestjs/config';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+
+import { AppModule } from './app.module';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  const port = configService.get<number>('PORT') ?? 3001;
-  //  Nếu không có PORT, throw error rõ ràng
-  if (!port) {
-    throw new Error(
-      'PORT environment variable is not set. Cloud Run requires PORT to be defined.',
-    );
-  }
-
-  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
-
-  // --- 1. Global Prefix ---
+  // Global prefix
   app.setGlobalPrefix('');
 
-  // --- 2. Global Validation Pipe ---
+  // Middleware
+  app.use(cookieParser());
+  app.use(helmet());
+  app.enableCors({
+    origin: configService.get('CORS_ORIGIN', '*'),
+    credentials: true,
+  });
+
+  // Global pipes
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-      disableErrorMessages: nodeEnv === 'production',
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
-  // --- 3. Global Exception Filter ---
-  app.useGlobalFilters(new HttpExceptionFilter());
+  // Swagger documentation
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('FutureNext API')
+    .setDescription('API documentation for FutureNext learning platform')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .addCookieAuth('refreshToken')
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
 
-  // --- 4. CORS for Development only ---
-  app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  });
-
-  // --- 5. Graceful Shutdown ---
-  app.enableShutdownHooks();
-
-  //  Đảm bảo lắng nghe trên tất cả interfaces (0.0.0.0)
-  await app.listen(port, '0.0.0.0');
+  const port = configService.get<number>('PORT', 3000);
+  await app.listen(port);
+  logger.log(`Application running on port ${port}`);
 }
 bootstrap();

@@ -16,18 +16,19 @@ export class SupabaseStorageService {
     );
   }
 
-  async createSignedUploadUrl(courseId: string, fileName: string) {
-    const fileKey = `courses/${courseId}/${Date.now()}-${fileName}`;
-
+  async createSignedUploadUrl(fileKey: string) {
     const { data, error } = await this.supabase.storage
       .from('course-videos')
       .createSignedUploadUrl(fileKey);
-
     if (error) throw new Error(error.message);
+    return { uploadUrl: data.signedUrl, fileKey };
+  }
 
-    return {
-      uploadUrl: data.signedUrl,
-      fileKey,
-    };
+  async deleteFile(fileKey: string) {
+    const { error } = await this.supabase.storage
+      .from('course-videos')
+      .remove([fileKey]);
+    if (error) throw new Error(error.message);
+    return { success: true };
   }
 }

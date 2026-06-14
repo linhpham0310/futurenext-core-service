@@ -1,4 +1,3 @@
-// src/shared/filters/http-exception.filter.ts
 import {
   ExceptionFilter,
   Catch,
@@ -9,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
-@Catch(HttpException) // Chỉ bắt các lỗi là HttpException hoặc kế thừa từ nó
+@Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
@@ -17,13 +16,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    const status = exception.getStatus
-      ? exception.getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = exception.getStatus();
 
-    // Lấy response gốc từ HttpException (có thể là string hoặc object { message: [...] })
     const exceptionResponse = exception.getResponse();
-    let errorMessage: string | string[] | object; // Có thể là object nếu response gốc là object phức tạp
+    let errorMessage: string | string[] | object;
 
     if (typeof exceptionResponse === 'string') {
       errorMessage = exceptionResponse;
@@ -31,7 +27,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       typeof exceptionResponse === 'object' &&
       exceptionResponse !== null
     ) {
-      errorMessage = (exceptionResponse as any).message || exceptionResponse; // Ưu tiên key 'message' nếu có
+      errorMessage = (exceptionResponse as any).message || exceptionResponse;
     } else {
       errorMessage = exception.message || 'Internal server error';
     }
@@ -41,14 +37,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
       path: request.url,
       method: request.method,
-      message: errorMessage, // Giữ nguyên message gốc (có thể là array string từ validation)
-      error: exception.name, // Tên của Exception (vd: BadRequestException, UnauthorizedException)
+      message: errorMessage,
+      error: exception.name,
     };
 
-    // Log lỗi chi tiết hơn ở server-side (bao gồm cả stack trace)
     this.logger.error(
       `[${request.method}] ${request.url} >> Status: ${status} Response: ${JSON.stringify(errorResponse)}`,
-      exception.stack, // Log stack trace để debug
+      exception.stack,
     );
 
     response.status(status).json(errorResponse);
