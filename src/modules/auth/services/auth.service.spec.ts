@@ -475,13 +475,14 @@ describe('AuthService', () => {
       };
       mockUsersService.findOneByEmail.mockResolvedValue(user);
       mockHashingService.hash.mockResolvedValue('hashed-otp');
-      mockDataSource.transaction.mockImplementation(async (callback) =>
+      mockEntityManager.transaction.mockImplementation(async (callback) =>
         callback(mockEntityManager),
       );
-
+      mockEntityManager.update.mockResolvedValue({ affected: 1 });
+      mockEntityManager.create.mockReturnValue({});
+      mockEntityManager.save.mockResolvedValue({});
       await service.handleForgotPassword(dto, ip);
-
-      expect(mockDataSource.transaction).toHaveBeenCalled();
+      expect(mockEntityManager.transaction).toHaveBeenCalled();
       expect(mockEventEmitter.emit).toHaveBeenCalled();
       expect(mockAuditService.log).toHaveBeenCalled();
     });
@@ -532,13 +533,12 @@ describe('AuthService', () => {
       mockPasswordResetRepo.findOne.mockResolvedValue(request);
       mockHashingService.compare.mockResolvedValue(true);
       mockHashingService.hash.mockResolvedValue('new-hashed-password');
-      mockDataSource.transaction.mockImplementation(async (callback) =>
+      mockEntityManager.transaction.mockImplementation(async (callback) =>
         callback(mockEntityManager),
       );
-
+      mockEntityManager.update.mockResolvedValue({ affected: 1 });
       await service.handleResetPassword(dto, ip);
-
-      expect(mockDataSource.transaction).toHaveBeenCalled();
+      expect(mockEntityManager.transaction).toHaveBeenCalled();
       expect(mockAuditService.log).toHaveBeenCalled();
     });
     it('should throw BadRequestException if confirm password does not match', async () => {

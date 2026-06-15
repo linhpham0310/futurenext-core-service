@@ -156,24 +156,24 @@ describe('TeacherProfilesService', () => {
 
     it('should update profile successfully when status is PENDING', async () => {
       const existingProfile = {
-        user_id: userId,
+        userId,
         status: TeacherProfileStatus.PENDING_REVIEW,
         bio: 'Old Bio',
+        expertise: [],
       };
-      const mergedProfile = { ...existingProfile, ...dto };
 
       mockTeacherProfileRepo.findOne.mockResolvedValue(existingProfile);
-      mockTeacherProfileRepo.merge.mockReturnValue(mergedProfile);
-      mockTeacherProfileRepo.save.mockResolvedValue(mergedProfile);
+      mockTeacherProfileRepo.save.mockResolvedValue({
+        ...existingProfile,
+        bio: 'Updated Bio',
+      });
 
       const result = await service.updateProfile(userId, dto);
 
       expect(result.bio).toBe('Updated Bio');
-      expect(mockTeacherProfileRepo.merge).toHaveBeenCalledWith(
-        existingProfile,
-        dto,
+      expect(mockTeacherProfileRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ bio: 'Updated Bio' }),
       );
-      expect(mockTeacherProfileRepo.save).toHaveBeenCalledWith(mergedProfile);
     });
   });
   // =========================================================================

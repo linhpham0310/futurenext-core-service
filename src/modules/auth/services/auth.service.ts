@@ -66,6 +66,9 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
   ): Promise<{ message: string }> {
+    if (dto.password !== dto.confirmPassword) {
+      throw new BadRequestException('Mật khẩu xác nhận không khớp.');
+    }
     const normalizedEmail = dto.email;
     const existingUser = await this.entityManager.findOne(User, {
       where: { email: normalizedEmail },

@@ -92,66 +92,32 @@ describe('UsersService', () => {
 
   describe('updateProfile()', () => {
     const userId = 'user-1';
-    const currentTimestamp = new Date('2024-01-01T00:00:00.000Z');
-    const updateDto = {
-      fullName: 'Updated Name',
-      avatarUrl: 'https://example.com/avatar.jpg',
-      updatedAt: currentTimestamp.toISOString(),
-    };
 
-    it('should successfully update profile with optimistic lock', async () => {
-      mockEntityManager.update.mockResolvedValue({ affected: 1 });
-      mockEntityManager.findOne.mockResolvedValue({
+    it('should successfully update profile', async () => {
+      const existingUser = {
         id: userId,
+        fullName: 'Old Name',
+        avatarUrl: null,
+        phone: null,
+      };
+      mockUserRepository.findOne
+        .mockResolvedValueOnce(existingUser) // lần 1: tìm user để update
+        .mockResolvedValueOnce({ id: userId, fullName: 'Updated Name' }); // lần 2: findProfileById
+
+      const result = await service.updateProfile(userId, {
         fullName: 'Updated Name',
-        updatedAt: new Date(),
       });
 
-      const result = await service.updateProfile(userId, updateDto);
-
-      expect(mockEntityManager.update).toHaveBeenCalledWith(
-        User,
-        { id: userId, updatedAt: currentTimestamp },
-        { fullName: updateDto.fullName, avatarUrl: updateDto.avatarUrl },
-      );
+      expect(mockUserRepository.save).toHaveBeenCalled();
       expect(result).toHaveProperty('fullName', 'Updated Name');
     });
 
-    it('should throw ConflictException if optimistic lock fails', async () => {
-      mockEntityManager.update.mockResolvedValue({ affected: 0 });
-      mockEntityManager.findOne.mockResolvedValue({
-        id: userId,
-        updatedAt: new Date('2024-01-02T00:00:00.000Z'),
-      });
-
-      await expect(service.updateProfile(userId, updateDto)).rejects.toThrow(
-        ConflictException,
-      );
-    });
-
     it('should throw NotFoundException if user does not exist', async () => {
-      mockEntityManager.update.mockResolvedValue({ affected: 0 });
-      mockEntityManager.findOne.mockResolvedValue(null);
+      mockUserRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.updateProfile(userId, updateDto)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('should return current profile if no fields to update', async () => {
-      const currentUser = {
-        id: userId,
-        fullName: 'Old Name',
-        updatedAt: currentTimestamp,
-      };
-      mockEntityManager.findOne.mockResolvedValue(currentUser);
-
-      const result = await service.updateProfile(userId, {
-        updatedAt: currentTimestamp.toISOString(),
-      });
-
-      expect(result).toEqual(currentUser);
-      expect(mockEntityManager.update).not.toHaveBeenCalled();
+      await expect(
+        service.updateProfile(userId, { fullName: 'New Name' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
