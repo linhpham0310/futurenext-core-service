@@ -13,15 +13,33 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // Global prefix
+  // Global prefix – giữ nguyên (không đổi)
   app.setGlobalPrefix('');
 
   // Middleware
   app.use(cookieParser());
   app.use(helmet());
+
+  // CORS configuration – hỗ trợ development và Vercel preview
+  const corsOrigins = configService.get<string>('CORS_ORIGINS');
+  let allowedOrigins: string[] = [];
+  if (corsOrigins) {
+    allowedOrigins = corsOrigins.split(',');
+  } else {
+    allowedOrigins = ['http://localhost:3001', 'http://localhost:3000'];
+  }
+
   app.enableCors({
-    origin: configService.get('CORS_ORIGIN', '*'),
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Cho phép tất cả preview deployment trên Vercel
+      if (origin.match(/\.vercel\.app$/)) return callback(null, true);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Authorization',
   });
 
   // Global pipes
