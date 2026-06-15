@@ -234,6 +234,58 @@ export class AuthService {
     };
   }
 
+  async resendVerificationOtp(
+    email: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<{ message: string }> {
+    const user = await this.entityManager.findOne(User, {
+      where: { email },
+      select: ['id', 'email', 'status', 'fullName'],
+    });
+    if (!user) {
+      this.logger.warn(`Resend OTP attempt for non-existent email: ${email}`);
+      return {
+        message: 'Nếu email tồn tại, chúng tôi đã gửi lại mã xác thực.',
+      };
+    }
+    if (user.status !== UserStatus.PENDING_EMAIL_VERIFY) {
+      this.logger.warn(`Resend OTP attempt for already active user: ${email}`);
+      return { message: 'Tài khoản này đã được xác thực hoặc không hợp lệ.' };
+    }
+
+    const otp = this.generateNumericOTP(6);
+    const otpHash = await this.hashingService.hash(otp);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    await this.entityManager.update(
+      EmailVerification,
+      { userId: user.id, consumedAt: IsNull() },
+      { consumedAt: new Date() },
+    );
+
+    const newVerification = this.entityManager.create(EmailVerification, {
+      userId: user.id,
+      email: user.email,
+      codeHash: otpHash,
+      expiresAt,
+    });
+    await this.entityManager.save(newVerification);
+
+    this.eventEmitter.emit('user.registered', { user, otp });
+    this.logger.log(`Resent verification OTP to ${email}`);
+
+    this.auditService.log({
+      action: 'user.email.resend_otp',
+      actorId: user.id,
+      ip,
+      userAgent,
+      meta: { email },
+    });
+
+    return { message: 'Mã xác thực mới đã được gửi đến email của bạn.' };
+  }
+
   async login(
     dto: LoginDto,
     ip?: string,

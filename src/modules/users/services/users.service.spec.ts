@@ -10,7 +10,7 @@ import {
 import { UsersService } from './users.service';
 import { AuditService } from '@/shared/providers/audit/audit.service';
 import { User, UserRole, UserStatus } from '../entities/user.entity';
-import { PrismaService } from 'prisma/prisma.service';
+import { PrismaService } from '../../../../prisma/prisma.service';
 
 describe('UsersService', () => {
   let service: UsersService;

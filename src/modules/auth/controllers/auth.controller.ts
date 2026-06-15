@@ -30,6 +30,7 @@ import { ChangePasswordDto } from '../dto/change-password.dto';
 import { JwtRefreshGuard } from '../guards/jwt-refresh.guard';
 import { RequestWithUser } from '../interfaces/request-with-user.interface';
 import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
+import { ResendOtpDto } from '../dto/resend-otp.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -61,6 +62,17 @@ export class AuthController {
     return this.authService.verifyEmail(verifyEmailDto);
   }
 
+  @Throttle({ default: { limit: 3, ttl: 60 * 60 * 1000 } }) // giới hạn 3 lần/giờ
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  async resendOtp(
+    @Body() dto: ResendOtpDto,
+    @Ip() ip: string,
+    @Req() req: Request,
+  ): Promise<{ message: string }> {
+    const userAgent = req.headers['user-agent'];
+    return this.authService.resendVerificationOtp(dto.email, ip, userAgent);
+  }
   @Throttle({ default: { limit: 20, ttl: 15 * 60 * 1000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
