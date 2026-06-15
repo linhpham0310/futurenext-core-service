@@ -246,6 +246,12 @@ export class AdminTeacherProfilesController {
     };
   }
 
+  @Delete(':id')
+  async deleteProfile(@Param('id') id: string, @Request() req) {
+    const adminId = req.user.sub;
+    return this.teacherProfilesService.deleteProfile(id, adminId);
+  }
+
   @Patch(':id/approve')
   async approveProfile(@Param('id') id: string, @Request() req) {
     const result = await this.teacherProfilesService.reviewProfile(

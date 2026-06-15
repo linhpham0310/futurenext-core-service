@@ -266,4 +266,21 @@ export class TeacherProfilesService {
     if (dto.expertise !== undefined) profile.expertise = dto.expertise;
     return this.teacherProfileRepo.save(profile);
   }
+
+  async deleteProfile(profileId: string, adminId: string) {
+    const profile = await this.teacherProfileRepo.findOne({
+      where: { id: profileId },
+      relations: ['user'],
+    });
+    if (!profile) throw new NotFoundException('Hồ sơ không tồn tại');
+    await this.teacherProfileRepo.delete(profileId);
+    // Audit log
+    this.auditService.log({
+      action: 'DELETE_TEACHER_PROFILE',
+      actorId: adminId,
+      targetId: profile.userId,
+      details: { profileId, userEmail: profile.user?.email },
+    });
+    return { success: true };
+  }
 }

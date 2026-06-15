@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_FILTER } from '@nestjs/core';
+import { RedisModule } from '@nestjs-modules/ioredis'; // ← thêm
 
 import { SharedModule } from './shared/shared.module';
 import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
@@ -27,10 +28,17 @@ import { ReportModule } from './modules/report/report.module';
 
 @Module({
   imports: [
-    // Global configuration
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+    }),
+    RedisModule.forRootAsync({
+      // ← thêm block này
+      useFactory: (configService: ConfigService) => ({
+        type: 'single',
+        url: configService.getOrThrow('REDIS_URL'),
+      }),
+      inject: [ConfigService],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -56,12 +64,7 @@ import { ReportModule } from './modules/report/report.module';
       verboseMemoryLeak: false,
       ignoreErrors: false,
     }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60000,
-        limit: 100,
-      },
-    ]),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     SharedModule,
     AuthModule,
     UsersModule,
