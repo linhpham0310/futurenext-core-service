@@ -11,7 +11,7 @@ export class BootstrapExtensions0000000000001 implements MigrationInterface {
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "vector"`);
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  public async down(_queryRunner: QueryRunner): Promise<void> {
     // Không drop extensions vì có thể ảnh hưởng các schema khác
     // Extensions chỉ drop thủ công khi teardown toàn bộ DB
   }

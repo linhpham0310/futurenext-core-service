@@ -24,10 +24,7 @@ import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
 
 import { HashingService } from '@/shared/providers/hashing/hashing.service';
-import {
-  AuditService,
-  AuditLogPayload,
-} from '@/shared/providers/audit/audit.service';
+import { AuditService } from '@/shared/providers/audit/audit.service';
 import {
   User,
   UserRole,

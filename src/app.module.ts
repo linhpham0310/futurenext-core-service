@@ -4,11 +4,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER } from '@nestjs/core';
 
 import { SharedModule } from './shared/shared.module';
 import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
-import { JwtAuthGuard } from './shared/guards/jwt-auth.guard';
 
 // Feature Modules
 import { AuthModule } from './modules/auth/auth.module';

@@ -1,7 +1,6 @@
 // src/modules/announcement/announcement.service.ts
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { Announcement, Course, Purchase } from '@prisma/client'; // nếu có prisma client
 
 @Injectable()
 export class AnnouncementService {
