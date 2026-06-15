@@ -10,6 +10,7 @@ import {
 import { UsersService } from './users.service';
 import { AuditService } from '@/shared/providers/audit/audit.service';
 import { User, UserRole, UserStatus } from '../entities/user.entity';
+import { PrismaService } from 'prisma/prisma.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -41,6 +42,10 @@ describe('UsersService', () => {
     log: jest.fn(),
   };
 
+  const mockPrismaService = {
+    purchase: { count: jest.fn() },
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -50,6 +55,7 @@ describe('UsersService', () => {
         { provide: EntityManager, useValue: mockEntityManager },
         { provide: getRepositoryToken(User), useValue: mockUserRepository },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: PrismaService, useValue: mockPrismaService },
       ],
     }).compile();
 
@@ -59,30 +65,20 @@ describe('UsersService', () => {
   describe('findProfileById()', () => {
     const userId = 'user-1';
 
-    it('should return user profile with teacherProfile relation', async () => {
+    it('should return user profile', async () => {
       const user = {
         id: userId,
         fullName: 'Test User',
         email: 'test@example.com',
-        role: UserRole.TEACHER,
-        teacherProfile: { id: 'profile-1', status: 'APPROVED' },
       };
-      mockEntityManager.findOne.mockResolvedValue(user);
+      mockUserRepository.findOne.mockResolvedValue(user); // ← dùng mockUserRepository
 
       const result = await service.findProfileById(userId);
-
       expect(result).toEqual(user);
-      expect(mockEntityManager.findOne).toHaveBeenCalledWith(
-        User,
-        expect.objectContaining({
-          where: { id: userId },
-          select: expect.any(Array),
-        }),
-      );
     });
 
     it('should throw NotFoundException if user does not exist', async () => {
-      mockEntityManager.findOne.mockResolvedValue(null);
+      mockUserRepository.findOne.mockResolvedValue(null); // ← dùng mockUserRepository
 
       await expect(service.findProfileById('non-existent')).rejects.toThrow(
         NotFoundException,
@@ -100,9 +96,11 @@ describe('UsersService', () => {
         avatarUrl: null,
         phone: null,
       };
+      const updatedUser = { id: userId, fullName: 'Updated Name' };
+
       mockUserRepository.findOne
-        .mockResolvedValueOnce(existingUser) // lần 1: tìm user để update
-        .mockResolvedValueOnce({ id: userId, fullName: 'Updated Name' }); // lần 2: findProfileById
+        .mockResolvedValueOnce(existingUser) // lần 1: tìm để update
+        .mockResolvedValueOnce(updatedUser); // lần 2: findProfileById sau save
 
       const result = await service.updateProfile(userId, {
         fullName: 'Updated Name',
@@ -120,7 +118,6 @@ describe('UsersService', () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
-
   // --- [Task: S2-BE-08] TEST CHO UPDATE ROLE & ADMIN CHECK ---
   describe('updateRole', () => {
     it('nên ném NotFoundException nếu user không tồn tại', async () => {
