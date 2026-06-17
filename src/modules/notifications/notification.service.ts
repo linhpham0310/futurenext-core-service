@@ -6,11 +6,13 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 export class NotificationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getUserNotifications(userId: string, limit = 20) {
+  async getUserNotifications(userId: string, limit: number = 20) {
+    const take = Number(limit) || 20;
+
     return this.prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take,
     });
   }
 

@@ -65,13 +65,11 @@ export class RevenueService {
     ]);
 
     return {
-      items,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      items: items.map((p) => ({
+        ...p,
+        userName: 'N/A',
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 
@@ -136,13 +134,11 @@ export class RevenueService {
     ]);
 
     return {
-      items,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      items: items.map((p) => ({
+        ...p,
+        userName: 'N/A',
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 }

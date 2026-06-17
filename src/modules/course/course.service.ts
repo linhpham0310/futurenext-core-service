@@ -245,16 +245,12 @@ export class CourseService {
     const where: any = {};
     if (status) where.status = status;
     if (q) {
-      where.OR = [
-        { title: { contains: q, mode: 'insensitive' } },
-        { instructor: { fullName: { contains: q, mode: 'insensitive' } } },
-      ];
+      where.OR = [{ title: { contains: q, mode: 'insensitive' } }];
     }
     const [items, total] = await this.prisma.$transaction([
       this.prisma.course.findMany({
         where,
         include: {
-          instructor: { select: { id: true, fullName: true, email: true } },
           _count: { select: { sections: true, enrollments: true } },
         },
         skip,
@@ -267,6 +263,7 @@ export class CourseService {
       ...course,
       revenue: course._count.enrollments * course.price,
       students: course._count.enrollments,
+      instructor: { fullName: 'Unknown' },
     }));
     return {
       data: transformed,

@@ -9,6 +9,10 @@ export class GetTeacherProfilesFilterDto {
   status?: TeacherProfileStatus;
 
   @IsOptional()
+  @IsString()
+  q?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

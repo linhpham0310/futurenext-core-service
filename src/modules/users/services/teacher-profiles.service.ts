@@ -94,7 +94,7 @@ export class TeacherProfilesService {
 
   // [Task: S3-BE-02] Hàm lấy danh sách hồ sơ (kèm thông tin user)
   async findAllForAdmin(filterDto: GetTeacherProfilesFilterDto) {
-    const { status, page = 1, limit = 10 } = filterDto;
+    const { status, q, page = 1, limit = 10 } = filterDto;
 
     // Sử dụng QueryBuilder để Join bảng users, lấy email hiển thị cho Admin
     const queryBuilder = this.teacherProfileRepo
@@ -116,6 +116,12 @@ export class TeacherProfilesService {
 
     if (status) {
       queryBuilder.andWhere('profile.status = :status', { status });
+    }
+
+    if (q) {
+      queryBuilder.andWhere('(user.fullName ILIKE :q OR user.email ILIKE :q)', {
+        q: `%${q}%`,
+      });
     }
 
     const [items, total] = await queryBuilder.getManyAndCount();
