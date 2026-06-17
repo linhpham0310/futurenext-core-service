@@ -13,25 +13,23 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // Global prefix – giữ nguyên (không đổi)
   app.setGlobalPrefix('');
 
   // Middleware
   app.use(cookieParser());
   app.use(helmet());
 
-  // CORS configuration – hỗ trợ development và Vercel preview
-  const corsOrigins = configService.get<string>('CORS_ORIGINS');
-  let allowedOrigins: string[] = [];
-  if (corsOrigins) {
-    allowedOrigins = corsOrigins.split(',');
-  } else {
-    allowedOrigins = ['http://localhost:3001', 'http://localhost:3000'];
-  }
-
+  // CORS configuration – tạm thời cho phép mọi origin
   app.enableCors({
     origin: true,
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'X-Requested-With',
+    ],
   });
 
   // Global pipes
@@ -44,7 +42,7 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger documentation
+  // Swagger
   const swaggerConfig = new DocumentBuilder()
     .setTitle('FutureNext API')
     .setDescription('API documentation for FutureNext learning platform')
