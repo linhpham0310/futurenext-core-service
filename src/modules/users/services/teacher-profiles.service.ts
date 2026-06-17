@@ -105,14 +105,16 @@ export class TeacherProfilesService {
         'profile.bio',
         'profile.expertise',
         'profile.status',
-        'profile.created_at',
+        'profile.createdAt',
         'user.id',
         'user.email',
-        'user.full_name', // Tránh select password_hash
+        'user.fullName', // Tránh select password_hash
       ])
-      .orderBy('profile.created_at', 'DESC')
+      .orderBy('profile.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
+
+    queryBuilder.orderBy('profile.createdAt', 'DESC');
 
     if (status) {
       queryBuilder.andWhere('profile.status = :status', { status });

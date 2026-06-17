@@ -251,7 +251,7 @@ export class CourseService {
       this.prisma.course.findMany({
         where,
         include: {
-          _count: { select: { sections: true, enrollments: true } },
+          _count: { select: { sections: true, purchases: true } },
         },
         skip,
         take: Number(limit),
@@ -261,8 +261,8 @@ export class CourseService {
     ]);
     const transformed = items.map((course) => ({
       ...course,
-      revenue: course._count.enrollments * course.price,
-      students: course._count.enrollments,
+      revenue: 0,
+      students: 0,
       instructor: { fullName: 'Unknown' },
     }));
     return {
