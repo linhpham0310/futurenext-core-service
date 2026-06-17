@@ -30,16 +30,8 @@ async function bootstrap() {
   }
 
   app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      // Cho phép tất cả preview deployment trên Vercel
-      if (origin.match(/\.vercel\.app$/)) return callback(null, true);
-      callback(new Error('Not allowed by CORS'));
-    },
+    origin: true,
     credentials: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type, Authorization',
   });
 
   // Global pipes
