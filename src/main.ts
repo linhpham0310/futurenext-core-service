@@ -4,7 +4,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
-import helmet from 'helmet';
+// import helmet from 'helmet'; // Tạm thời comment để kiểm tra
 
 import { AppModule } from './app.module';
 
@@ -15,11 +15,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('');
 
-  // Middleware
-  app.use(cookieParser());
-  app.use(helmet());
-
-  // CORS configuration – tạm thời cho phép mọi origin
+  // CORS phải đặt TRƯỚC helmet
   app.enableCors({
     origin: true,
     credentials: true,
@@ -31,6 +27,9 @@ async function bootstrap() {
       'X-Requested-With',
     ],
   });
+
+  app.use(cookieParser());
+  // app.use(helmet());
 
   // Global pipes
   app.useGlobalPipes(
