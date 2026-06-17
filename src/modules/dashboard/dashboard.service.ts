@@ -1,4 +1,3 @@
-// src/modules/dashboard/dashboard.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -6,9 +5,6 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { User } from '../users/entities/user.entity';
 import { TeacherProfile } from '../users/entities/teacher-profile.entity';
 import { SecurityAuditLog } from '../../shared/providers/audit/audit.entity';
-import { Certificate } from '../certificate/entities/certificate.entity';
-import { LearningProgress } from '../lx/entities/learning-progress.entity';
-import { Notification } from '../notifications/entities/notification.entity';
 
 @Injectable()
 export class DashboardService {
@@ -19,12 +15,6 @@ export class DashboardService {
     private teacherProfileRepo: Repository<TeacherProfile>,
     @InjectRepository(SecurityAuditLog)
     private auditLogRepo: Repository<SecurityAuditLog>,
-    @InjectRepository(Certificate)
-    private certificateRepo: Repository<Certificate>,
-    @InjectRepository(LearningProgress)
-    private learningProgressRepo: Repository<LearningProgress>,
-    @InjectRepository(Notification)
-    private notificationRepo: Repository<Notification>,
   ) {}
 
   async getAdminStats() {
@@ -47,7 +37,7 @@ export class DashboardService {
     });
 
     const pendingTeacherProfiles = await this.teacherProfileRepo.count({
-      where: { status: 'pending_review' },
+      where: { status: 'pending_review' as any },
     });
 
     return {
@@ -93,7 +83,7 @@ export class DashboardService {
         })
       )._sum.amount || 0;
 
-    const totalCertificates = await this.certificateRepo.count({
+    const totalCertificates = await this.prisma.certificate.count({
       where: { course: { instructorId: teacherId } },
     });
 
@@ -109,12 +99,12 @@ export class DashboardService {
       unreadNotifications,
     ] = await Promise.all([
       this.prisma.purchase.count({ where: { userId, status: 'COMPLETED' } }),
-      this.learningProgressRepo.count({
+      this.prisma.lxLearningProgress.count({
         where: { userId, status: 'COMPLETED' },
       }),
-      this.learningProgressRepo.count({ where: { userId } }),
-      this.certificateRepo.count({ where: { userId } }),
-      this.notificationRepo.count({ where: { userId, isRead: false } }),
+      this.prisma.lxLearningProgress.count({ where: { userId } }),
+      this.prisma.certificate.count({ where: { userId } }),
+      this.prisma.notification.count({ where: { userId, isRead: false } }),
     ]);
 
     return {
