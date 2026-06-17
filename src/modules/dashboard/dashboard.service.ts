@@ -1,13 +1,34 @@
 // src/modules/dashboard/dashboard.service.ts
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { User } from '../users/entities/user.entity';
+import { TeacherProfile } from '../users/entities/teacher-profile.entity';
+import { SecurityAuditLog } from '../../shared/providers/audit/audit.entity';
+import { Certificate } from '../certificate/entities/certificate.entity';
+import { LearningProgress } from '../lx/entities/learning-progress.entity';
+import { Notification } from '../notifications/entities/notification.entity';
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectRepository(User) private userRepo: Repository<User>,
+    @InjectRepository(TeacherProfile)
+    private teacherProfileRepo: Repository<TeacherProfile>,
+    @InjectRepository(SecurityAuditLog)
+    private auditLogRepo: Repository<SecurityAuditLog>,
+    @InjectRepository(Certificate)
+    private certificateRepo: Repository<Certificate>,
+    @InjectRepository(LearningProgress)
+    private learningProgressRepo: Repository<LearningProgress>,
+    @InjectRepository(Notification)
+    private notificationRepo: Repository<Notification>,
+  ) {}
 
   async getAdminStats() {
-    const totalUsers = await this.prisma.user.count();
+    const totalUsers = await this.userRepo.count();
     const totalCourses = await this.prisma.course.count();
 
     const now = new Date();
@@ -25,8 +46,8 @@ export class DashboardService {
       where: { status: 'SUBMITTED' },
     });
 
-    const pendingTeacherProfiles = await this.prisma.teacherProfile.count({
-      where: { status: 'PENDING_REVIEW' },
+    const pendingTeacherProfiles = await this.teacherProfileRepo.count({
+      where: { status: 'pending_review' },
     });
 
     return {
@@ -41,15 +62,15 @@ export class DashboardService {
   }
 
   async getRecentActivities(limit: number = 10) {
-    const logs = await this.prisma.auditLog.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: Number(limit),
+    const logs = await this.auditLogRepo.find({
+      order: { createdAt: 'DESC' },
+      take: limit,
     });
 
     return logs.map((log) => ({
       id: log.id,
       type: log.action,
-      description: log.details,
+      description: log.meta?.details || log.action,
       timestamp: log.createdAt,
     }));
   }
@@ -72,7 +93,7 @@ export class DashboardService {
         })
       )._sum.amount || 0;
 
-    const totalCertificates = await this.prisma.certificate.count({
+    const totalCertificates = await this.certificateRepo.count({
       where: { course: { instructorId: teacherId } },
     });
 
@@ -88,12 +109,12 @@ export class DashboardService {
       unreadNotifications,
     ] = await Promise.all([
       this.prisma.purchase.count({ where: { userId, status: 'COMPLETED' } }),
-      this.prisma.learningProgress.count({
+      this.learningProgressRepo.count({
         where: { userId, status: 'COMPLETED' },
       }),
-      this.prisma.learningProgress.count({ where: { userId } }),
-      this.prisma.certificate.count({ where: { userId } }),
-      this.prisma.notification.count({ where: { userId, isRead: false } }),
+      this.learningProgressRepo.count({ where: { userId } }),
+      this.certificateRepo.count({ where: { userId } }),
+      this.notificationRepo.count({ where: { userId, isRead: false } }),
     ]);
 
     return {
@@ -111,7 +132,7 @@ export class DashboardService {
       where: { userId, status: 'COMPLETED' },
       include: { course: { select: { id: true, title: true } } },
       orderBy: { purchasedAt: 'desc' },
-      take: Number(limit),
+      take: limit,
     });
 
     return purchases.map((p) => ({
