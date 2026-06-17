@@ -51,8 +51,8 @@ export class SeedService {
   private async seedUsersAndCredentials(): Promise<void> {
     this.logger.log('Seeding Users, Credentials, and Consents...');
 
-    const studentPasswordPlain = 'password123'; // Mật khẩu gốc
-    const adminPasswordPlain = 'admin123'; // Mật khẩu gốc
+    const studentPasswordPlain = 'Student123@'; // Mật khẩu gốc
+    const adminPasswordPlain = 'Admin123@'; // Mật khẩu gốc
 
     // Hash mật khẩu an toàn bằng HashingService của project
     const studentHash = await this.hashingService.hash(studentPasswordPlain);
