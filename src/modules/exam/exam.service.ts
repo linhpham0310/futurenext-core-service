@@ -18,7 +18,6 @@ export class ExamService {
   async getExamsByTeacher(teacherId: string) {
     return this.prisma.exam.findMany({
       where: { teacherId },
-      include: { course: { select: { title: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }

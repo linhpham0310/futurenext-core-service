@@ -332,6 +332,9 @@ model Exam {
   questions   Question[]
   results     ExamResult[]
 
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+
   @@index([teacherId])
   @@index([courseId])
   @@schema("public")

@@ -615,17 +615,27 @@ export class CourseService {
     const totalCourses = await this.prisma.course.count({
       where: { instructorId: teacherId },
     });
-    const totalStudents = await this.prisma.purchase.count({
-      where: { course: { instructorId: teacherId }, status: 'COMPLETED' },
+
+    // Đếm số học viên duy nhất
+    const distinctStudents = await this.prisma.purchase.findMany({
+      where: {
+        course: { instructorId: teacherId },
+        status: 'COMPLETED',
+      },
+      select: { userId: true },
       distinct: ['userId'],
     });
+    const totalStudents = distinctStudents.length;
+
     const totalRevenueAgg = await this.prisma.revenueTransaction.aggregate({
       _sum: { amount: true },
       where: { teacherId, status: 'SUCCESS' },
     });
+
     const totalCertificates = await this.prisma.certificate.count({
       where: { course: { instructorId: teacherId } },
     });
+
     return {
       totalCourses,
       totalStudents,
