@@ -57,6 +57,7 @@ model Course {
   reviews           Review[]
   certificates      Certificate[]
   announcements     Announcement[]
+  exams   Exam[]
 
   @@index([instructorId])
   @@index([status])
