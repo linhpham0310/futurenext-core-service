@@ -430,12 +430,15 @@ export class CourseService {
 
   // ==================== LESSON MANAGEMENT ====================
   async addLesson(sectionId: string, dto: CreateLessonDto, teacherId: string) {
+    // Lấy section kèm course để biết courseId
     const section = await this.prisma.section.findUnique({
       where: { id: sectionId },
       include: { course: true },
     });
     if (!section || section.course.instructorId !== teacherId) {
-      throw new ForbiddenException('...');
+      throw new ForbiddenException(
+        'Bạn không có quyền thêm bài học vào chương mục này',
+      );
     }
 
     const lastLesson = await this.prisma.lesson.findFirst({
@@ -454,10 +457,11 @@ export class CourseService {
         isFreePreview: dto.isFreePreview || false,
         orderIndex: newOrderIndex,
         slug: slugify(dto.title, { lower: true, strict: true }),
-        // Dùng connect cho cả section và course
+        // ✅ Quan hệ với section
         section: {
           connect: { id: sectionId },
         },
+        // ✅ Quan hệ với course (bắt buộc theo schema)
         course: {
           connect: { id: section.courseId },
         },
