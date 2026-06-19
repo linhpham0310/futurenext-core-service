@@ -451,7 +451,6 @@ export class CourseService {
         content: dto.content,
         duration: dto.duration,
         isFreePreview: dto.isFreePreview || false,
-        sectionId,
         section: {
           connect: { id: sectionId },
         },
