@@ -434,16 +434,17 @@ export class CourseService {
       where: { id: sectionId },
       include: { course: true },
     });
-    if (!section || section.course.instructorId !== teacherId)
-      throw new ForbiddenException(
-        'Bạn không có quyền thêm bài học vào chương mục này',
-      );
+    if (!section || section.course.instructorId !== teacherId) {
+      throw new ForbiddenException('...');
+    }
+
     const lastLesson = await this.prisma.lesson.findFirst({
       where: { sectionId },
       orderBy: { orderIndex: 'desc' },
       select: { orderIndex: true },
     });
     const newOrderIndex = lastLesson ? lastLesson.orderIndex + 1 : 1;
+
     return this.prisma.lesson.create({
       data: {
         title: dto.title,
@@ -451,11 +452,15 @@ export class CourseService {
         content: dto.content,
         duration: dto.duration,
         isFreePreview: dto.isFreePreview || false,
+        orderIndex: newOrderIndex,
+        slug: slugify(dto.title, { lower: true, strict: true }),
+        // Dùng connect cho cả section và course
         section: {
           connect: { id: sectionId },
         },
-        orderIndex: newOrderIndex,
-        slug: slugify(dto.title, { lower: true, strict: true }),
+        course: {
+          connect: { id: section.courseId },
+        },
       },
     });
   }
