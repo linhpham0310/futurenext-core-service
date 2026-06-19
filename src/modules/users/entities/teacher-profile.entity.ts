@@ -49,13 +49,13 @@ export class TeacherProfile {
   @Column('text', { array: true, nullable: true }) // Kiểu mảng text
   expertise?: string[];
 
-  @Column('int', { nullable: true })
+  @Column('int', { name: 'experience_years', nullable: true })
   experienceYears?: number;
 
-  @Column('varchar', { length: 1024, nullable: true })
+  @Column('varchar', { name: 'linkedin_url', length: 1024, nullable: true })
   linkedinUrl?: string;
 
-  @Column('varchar', { length: 1000, nullable: true })
+  @Column('varchar', { name: 'rejection_reason', length: 1000, nullable: true })
   rejectionReason?: string;
 
   @Column('uuid', { name: 'reviewed_by_user_id', nullable: true })

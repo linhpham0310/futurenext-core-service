@@ -452,6 +452,9 @@ export class CourseService {
         duration: dto.duration,
         isFreePreview: dto.isFreePreview || false,
         sectionId,
+        section: {
+          connect: { id: sectionId },
+        },
         orderIndex: newOrderIndex,
         slug: slugify(dto.title, { lower: true, strict: true }),
       },
