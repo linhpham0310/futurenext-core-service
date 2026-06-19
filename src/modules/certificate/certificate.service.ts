@@ -11,7 +11,6 @@ export class CertificateService {
       where: { course: { instructorId: teacherId } },
       include: {
         course: { select: { title: true } },
-        user: { select: { fullName: true } },
       },
       orderBy: { issuedAt: 'desc' },
     });

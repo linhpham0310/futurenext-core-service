@@ -6,7 +6,7 @@ import { UserRole } from '../users/entities/user.entity';
 import { PaymentService } from './payment.service';
 import { UpdatePaymentSettingDto } from './dto/update-payment-setting.dto';
 
-@Controller('teacher/payment-settings')
+@Controller('teacher/payment')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.TEACHER)
 export class PaymentController {

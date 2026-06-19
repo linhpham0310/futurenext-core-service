@@ -457,11 +457,11 @@ export class CourseService {
         isFreePreview: dto.isFreePreview || false,
         orderIndex: newOrderIndex,
         slug: slugify(dto.title, { lower: true, strict: true }),
-        // ✅ Quan hệ với section
+        //  Quan hệ với section
         section: {
           connect: { id: sectionId },
         },
-        // ✅ Quan hệ với course (bắt buộc theo schema)
+        //  Quan hệ với course (bắt buộc theo schema)
         course: {
           connect: { id: section.courseId },
         },
