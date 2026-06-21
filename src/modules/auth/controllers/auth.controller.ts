@@ -153,17 +153,18 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   async googleAuthRedirect(@Req() req: Request, @Res() res: Response) {
-    const { accessToken, refreshToken, user } = req.user as any;
-    // Set refresh token cookie
+    const { accessToken, refreshToken, user } = (req as any).user; // Set refresh token cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development',
       sameSite: 'strict',
       path: '/auth/refresh',
-      maxAge: ms(process.env.REFRESH_TOKEN_EXPIRES_IN || '7d'),
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
     // Redirect về frontend với access token (có thể dùng query param hoặc fragment)
-    return res.redirect(`${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`);
+    return res.redirect(
+      `${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`,
+    );
   }
 
   // Apple
@@ -174,9 +175,15 @@ export class AuthController {
   @Get('apple/callback')
   @UseGuards(AuthGuard('apple'))
   async appleAuthRedirect(@Req() req: Request, @Res() res: Response) {
-    const { accessToken, refreshToken, user } = req.user as any;
-    res.cookie('refreshToken', refreshToken, { ... });
-    return res.redirect(`${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`);
+    const { accessToken, refreshToken, user } = (req as any).user;
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+    return res.redirect(
+      `${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`,
+    );
   }
 
   // Facebook
@@ -187,11 +194,16 @@ export class AuthController {
   @Get('facebook/callback')
   @UseGuards(AuthGuard('facebook'))
   async facebookAuthRedirect(@Req() req: Request, @Res() res: Response) {
-    const { accessToken, refreshToken, user } = req.user as any;
-    res.cookie('refreshToken', refreshToken, { ... });
-    return res.redirect(`${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`);
+    const { accessToken, refreshToken, user } = (req as any).user;
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+    return res.redirect(
+      `${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`,
+    );
   }
-
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')

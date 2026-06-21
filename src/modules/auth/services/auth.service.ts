@@ -605,8 +605,11 @@ export class AuthService {
 
     // 6. Lưu refresh token hash
     const refreshTokenHash = await this.hashingService.hash(refreshToken);
+    const refreshExpires =
+      this.configService.get<string>('REFRESH_TOKEN_EXPIRES_IN') || '7d';
+
     const expiresAt = new Date(
-      Date.now() + ms(this.configService.get('REFRESH_TOKEN_EXPIRES_IN', '7d')),
+      Date.now() + ms(refreshExpires as ms.StringValue),
     );
     await this.entityManager.save(
       this.entityManager.create(AuthSession, {
