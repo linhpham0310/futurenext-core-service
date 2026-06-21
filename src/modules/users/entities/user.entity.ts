@@ -92,6 +92,12 @@ export class User {
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
+  @Column({ name: 'social_provider', length: 20, nullable: true })
+  socialProvider?: string;
+
+  @Column({ name: 'social_id', length: 255, nullable: true })
+  socialId?: string;
+
   @OneToOne(() => UserCredential, (credential) => credential.user, {
     cascade: true,
     eager: false,

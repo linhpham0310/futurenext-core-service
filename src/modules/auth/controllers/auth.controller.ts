@@ -12,6 +12,7 @@ import {
   Patch,
   Request,
   UnauthorizedException,
+  Get,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
@@ -31,6 +32,7 @@ import { JwtRefreshGuard } from '../guards/jwt-refresh.guard';
 import { RequestWithUser } from '../interfaces/request-with-user.interface';
 import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
 import { ResendOtpDto } from '../dto/resend-otp.dto';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
@@ -140,6 +142,56 @@ export class AuthController {
 
     return { accessToken: newAccessToken };
   }
+
+  // Google
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {
+    // Redirect to Google
+  }
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthRedirect(@Req() req: Request, @Res() res: Response) {
+    const { accessToken, refreshToken, user } = req.user as any;
+    // Set refresh token cookie
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'strict',
+      path: '/auth/refresh',
+      maxAge: ms(process.env.REFRESH_TOKEN_EXPIRES_IN || '7d'),
+    });
+    // Redirect về frontend với access token (có thể dùng query param hoặc fragment)
+    return res.redirect(`${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`);
+  }
+
+  // Apple
+  @Get('apple')
+  @UseGuards(AuthGuard('apple'))
+  async appleAuth() {}
+
+  @Get('apple/callback')
+  @UseGuards(AuthGuard('apple'))
+  async appleAuthRedirect(@Req() req: Request, @Res() res: Response) {
+    const { accessToken, refreshToken, user } = req.user as any;
+    res.cookie('refreshToken', refreshToken, { ... });
+    return res.redirect(`${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`);
+  }
+
+  // Facebook
+  @Get('facebook')
+  @UseGuards(AuthGuard('facebook'))
+  async facebookAuth() {}
+
+  @Get('facebook/callback')
+  @UseGuards(AuthGuard('facebook'))
+  async facebookAuthRedirect(@Req() req: Request, @Res() res: Response) {
+    const { accessToken, refreshToken, user } = req.user as any;
+    res.cookie('refreshToken', refreshToken, { ... });
+    return res.redirect(`${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`);
+  }
+
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')

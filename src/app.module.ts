@@ -25,9 +25,17 @@ import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { CertificateModule } from './modules/certificate/certificate.module';
 import { SupabaseStorageModule } from './modules/storage/supabase-storage.module';
 import { ReportModule } from './modules/report/report.module';
+import { PassportModule } from '@nestjs/passport';
+import { AuthController } from './modules/auth/controllers/auth.controller';
+import { GoogleStrategy } from './modules/auth/strategy/google.strategy';
+import { AppleStrategy } from './modules/auth/strategy/apple.strategy';
+import { FacebookStrategy } from './modules/auth/strategy/facebook.strategy';
+import { AuthService } from './modules/auth/services/auth.service';
 
 @Module({
   imports: [
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -77,11 +85,17 @@ import { ReportModule } from './modules/report/report.module';
     CertificateModule,
     SupabaseStorageModule,
   ],
+  controllers: [AuthController],
+
   providers: [
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,
     },
+    GoogleStrategy,
+    AppleStrategy,
+    FacebookStrategy,
   ],
+  exports: [AuthService],
 })
 export class AppModule {}

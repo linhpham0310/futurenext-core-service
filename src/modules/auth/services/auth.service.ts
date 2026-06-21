@@ -37,6 +37,14 @@ import { AuthSession } from '../entities/auth-session.entity';
 import { PasswordResetRequest } from '../entities/password-reset-request.entity';
 import { UsersService } from '@/modules/users/services/users.service';
 
+export interface OAuthProfile {
+  provider: 'google' | 'apple' | 'facebook';
+  providerId: string;
+  email?: string;
+  fullName: string;
+  avatarUrl?: string | null;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -509,6 +517,111 @@ export class AuthService {
       actorId: user.id,
     });
     return { newAccessToken, newRefreshToken };
+  }
+
+  async validateOAuthLogin(profile: OAuthProfile): Promise<any> {
+    let user: User | null = null;
+
+    // 1. Tìm user theo email
+    if (profile.email) {
+      user = await this.entityManager.findOne(User, {
+        where: { email: profile.email },
+      });
+    }
+
+    // 2. Nếu chưa có, tìm theo socialId
+    if (!user && profile.providerId) {
+      user = await this.entityManager.findOne(User, {
+        where: {
+          socialProvider: profile.provider,
+          socialId: profile.providerId,
+        },
+      });
+    }
+
+    // 3. Nếu đã có user
+    if (user) {
+      // Nếu user chưa có socialProvider thì cập nhật liên kết
+      if (!user.socialProvider && profile.providerId) {
+        user.socialProvider = profile.provider;
+        user.socialId = profile.providerId;
+        await this.entityManager.save(User, user);
+      }
+
+      // Kiểm tra trạng thái user
+      if (user.status === UserStatus.PENDING_EMAIL_VERIFY) {
+        // Social login => tự động xác minh email
+        user.status = UserStatus.ACTIVE;
+        // nếu có trường emailVerified, set true
+        await this.entityManager.save(User, user);
+      }
+      if (
+        user.status === UserStatus.LOCKED ||
+        user.status === UserStatus.DELETED
+      ) {
+        throw new ForbiddenException('Tài khoản đã bị khóa hoặc bị xóa.');
+      }
+    } else {
+      // 4. Tạo user mới
+      if (!profile.email) {
+        throw new BadRequestException('Không thể lấy email từ provider này.');
+      }
+      const newUser = this.entityManager.create(User, {
+        email: profile.email,
+        fullName: profile.fullName || 'User',
+        avatarUrl: profile.avatarUrl || null,
+        role: UserRole.STUDENT,
+        status: UserStatus.ACTIVE,
+        socialProvider: profile.provider,
+        socialId: profile.providerId,
+        locale: 'vi-VN',
+        timezone: 'Asia/Bangkok',
+      });
+      user = await this.entityManager.save(User, newUser);
+
+      // Audit log
+      await this.auditService.log({
+        action: 'user.social.register',
+        actorId: user.id,
+        details: { provider: profile.provider },
+      });
+    }
+
+    // 5. Tạo token (giống như login)
+    const accessToken = await this.jwtService.signAsync(
+      { sub: user.id, role: user.role },
+      {
+        secret: this.configService.get('JWT_SECRET'),
+        expiresIn: this.configService.get('JWT_EXPIRES_IN', '15m'),
+      },
+    );
+    const refreshToken = await this.jwtService.signAsync(
+      { sub: user.id },
+      {
+        secret: this.configService.get('REFRESH_TOKEN_SECRET'),
+        expiresIn: this.configService.get('REFRESH_TOKEN_EXPIRES_IN', '7d'),
+      },
+    );
+
+    // 6. Lưu refresh token hash
+    const refreshTokenHash = await this.hashingService.hash(refreshToken);
+    const expiresAt = new Date(
+      Date.now() + ms(this.configService.get('REFRESH_TOKEN_EXPIRES_IN', '7d')),
+    );
+    await this.entityManager.save(
+      this.entityManager.create(AuthSession, {
+        userId: user.id,
+        refreshTokenHash,
+        roleAtLogin: user.role,
+        expiresAt,
+      }),
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+      user: { id: user.id, fullName: user.fullName, role: user.role },
+    };
   }
 
   async handleLogout(
