@@ -214,25 +214,29 @@ export class CourseService {
   }
 
   async findAllPublished(query: any) {
-    const { page = 1, limit = 10, q } = query;
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
-    const where: any = { status: CourseStatus.PUBLISHED };
+    const q = query.q || '';
+
+    const where: any = { status: 'PUBLISHED' };
     if (q) {
       where.OR = [
         { title: { contains: q, mode: 'insensitive' } },
         { description: { contains: q, mode: 'insensitive' } },
       ];
     }
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.course.findMany({
         where,
-        //include: { instructor: { select: { fullName: true, avatar: true } } },
         skip,
-        take: Number(limit),
+        take: limit,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.course.count({ where }),
     ]);
+
     return {
       data: items,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
