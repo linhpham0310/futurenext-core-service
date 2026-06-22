@@ -69,13 +69,14 @@ export class RevenueService {
 
     // FIX: dùng raw query lấy userName vì User ở schema public (TypeORM)
     const userIds = [...new Set(items.map((p) => p.userId))];
-    // Thay dòng này trong revenue.service.ts
+    // Thay cả 2 chỗ trong revenue.service.ts
+
     const users =
       userIds.length > 0
-        ? await this.prisma.$queryRawUnsafe<{ id: string; fullName: string }[]>(
+        ? ((await this.prisma.$queryRawUnsafe(
             `SELECT id, "fullName" FROM public.users WHERE id = ANY($1::uuid[])`,
             userIds,
-          )
+          )) as { id: string; fullName: string }[])
         : [];
 
     const userMap = new Map(users.map((u) => [u.id, u.fullName]));
@@ -166,13 +167,14 @@ export class RevenueService {
 
     // FIX: raw query lấy userName
     const userIds = [...new Set(items.map((p) => p.userId))];
-    // Thay dòng này trong revenue.service.ts
+    // Thay cả 2 chỗ trong revenue.service.ts
+
     const users =
       userIds.length > 0
-        ? await this.prisma.$queryRawUnsafe<{ id: string; fullName: string }[]>(
+        ? ((await this.prisma.$queryRawUnsafe(
             `SELECT id, "fullName" FROM public.users WHERE id = ANY($1::uuid[])`,
             userIds,
-          )
+          )) as { id: string; fullName: string }[])
         : [];
 
     const userMap = new Map(users.map((u) => [u.id, u.fullName]));
