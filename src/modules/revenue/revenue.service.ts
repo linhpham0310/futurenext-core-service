@@ -58,6 +58,7 @@ export class RevenueService {
         orderBy: { purchasedAt: 'desc' },
         include: {
           course: { select: { title: true, instructorId: true } },
+          user: { select: { fullName: true } },
         },
       }),
       this.prisma.purchase.count({ where: { status: 'COMPLETED' } }),
@@ -66,7 +67,7 @@ export class RevenueService {
     return {
       items: items.map((p) => ({
         ...p,
-        userName: '',
+        userName: p.user?.fullName ?? '',
       })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
@@ -121,6 +122,7 @@ export class RevenueService {
         orderBy: { purchasedAt: 'desc' },
         include: {
           course: { select: { title: true } },
+          user: { select: { fullName: true } },
         },
       }),
       this.prisma.purchase.count({
@@ -134,7 +136,7 @@ export class RevenueService {
     return {
       items: items.map((p) => ({
         ...p,
-        userName: '',
+        userName: p.user?.fullName ?? '',
       })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };

@@ -23,7 +23,10 @@ export class RevenueController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   async getAdminTransactions(@Query() query: PaginationQueryDto) {
-    return this.revenueService.getAdminTransactions(query.page, query.limit);
+    return this.revenueService.getAdminTransactions(
+      query.page ?? 1,
+      query.limit ?? 20,
+    );
   }
 
   // ==================== TEACHER ENDPOINTS ====================
@@ -45,8 +48,8 @@ export class RevenueController {
     const teacherId = req.user.sub;
     return this.revenueService.getTeacherTransactions(
       teacherId,
-      query.page,
-      query.limit,
+      query.page ?? 1,
+      query.limit ?? 20,
     );
   }
 }
