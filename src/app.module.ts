@@ -83,15 +83,12 @@ import { GoogleStrategy } from './modules/auth/strategies/google.strategy';
     CertificateModule,
     SupabaseStorageModule,
   ],
-  controllers: [AuthController],
 
   providers: [
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,
     },
-    GoogleStrategy,
   ],
-  exports: [AuthService],
 })
 export class AppModule {}
