@@ -24,7 +24,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AuthListener } from './listeners/auth.listener';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { SharedModule } from '@/shared/shared.module';
-import { GoogleStrategy } from './strategies/google.strategy';
 @Module({
   imports: [
     ConfigModule, // Cần ConfigService
@@ -72,7 +71,6 @@ import { GoogleStrategy } from './strategies/google.strategy';
     AuthListener,
     JwtStrategy,
     JwtRefreshStrategy,
-    GoogleStrategy,
     JwtRefreshGuard,
   ],
   // Export AuthService nếu module khác cần inject trực tiếp (thường không cần)

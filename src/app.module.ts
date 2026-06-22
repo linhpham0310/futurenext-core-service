@@ -26,9 +26,6 @@ import { CertificateModule } from './modules/certificate/certificate.module';
 import { SupabaseStorageModule } from './modules/storage/supabase-storage.module';
 import { ReportModule } from './modules/report/report.module';
 import { PassportModule } from '@nestjs/passport';
-import { AuthController } from './modules/auth/controllers/auth.controller';
-import { AuthService } from './modules/auth/services/auth.service';
-import { GoogleStrategy } from './modules/auth/strategies/google.strategy';
 
 @Module({
   imports: [

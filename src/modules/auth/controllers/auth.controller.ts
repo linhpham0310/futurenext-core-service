@@ -201,28 +201,4 @@ export class AuthController {
   ): Promise<{ message: string }> {
     return this.authService.changePassword(req.user.userId, dto);
   }
-
-  // Google
-  @Get('google')
-  @UseGuards(AuthGuard('google'))
-  async googleAuth() {
-    // Redirect to Google
-  }
-
-  @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
-  async googleAuthRedirect(@Req() req: Request, @Res() res: Response) {
-    const { accessToken, refreshToken, user } = (req as any).user; // Set refresh token cookie
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'strict',
-      path: '/auth/refresh',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-    // Redirect về frontend với access token (có thể dùng query param hoặc fragment)
-    return res.redirect(
-      `${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`,
-    );
-  }
 }
