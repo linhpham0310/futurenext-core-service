@@ -40,9 +40,10 @@ import { UsersService } from '@/modules/users/services/users.service';
 export interface OAuthProfile {
   provider: 'google' | 'apple' | 'facebook';
   providerId: string;
-  email?: string;
+  email?: string | null;
   fullName: string;
   avatarUrl?: string | null;
+  role?: 'student' | 'teacher';
 }
 
 @Injectable()
@@ -566,11 +567,12 @@ export class AuthService {
       if (!profile.email) {
         throw new BadRequestException('Không thể lấy email từ provider này.');
       }
+
       const newUser = this.entityManager.create(User, {
         email: profile.email,
         fullName: profile.fullName || 'User',
         avatarUrl: profile.avatarUrl || null,
-        role: UserRole.STUDENT,
+        role: profile.role === 'teacher' ? UserRole.TEACHER : UserRole.STUDENT,
         status: UserStatus.ACTIVE,
         socialProvider: profile.provider,
         socialId: profile.providerId,
@@ -583,7 +585,11 @@ export class AuthService {
       await this.auditService.log({
         action: 'user.social.register',
         actorId: user.id,
-        details: { provider: profile.provider },
+        details: {
+          provider: profile.provider,
+          role: user.role,
+          socialId: user.socialId,
+        },
       });
     }
 
