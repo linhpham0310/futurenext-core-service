@@ -225,42 +225,4 @@ export class AuthController {
       `${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`,
     );
   }
-
-  // Apple
-  @Get('apple')
-  @UseGuards(AuthGuard('apple'))
-  async appleAuth() {}
-
-  @Get('apple/callback')
-  @UseGuards(AuthGuard('apple'))
-  async appleAuthRedirect(@Req() req: Request, @Res() res: Response) {
-    const { accessToken, refreshToken, user } = (req as any).user;
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-    });
-    return res.redirect(
-      `${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`,
-    );
-  }
-
-  // Facebook
-  @Get('facebook')
-  @UseGuards(AuthGuard('facebook'))
-  async facebookAuth() {}
-
-  @Get('facebook/callback')
-  @UseGuards(AuthGuard('facebook'))
-  async facebookAuthRedirect(@Req() req: Request, @Res() res: Response) {
-    const { accessToken, refreshToken, user } = (req as any).user;
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-    });
-    return res.redirect(
-      `${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`,
-    );
-  }
 }

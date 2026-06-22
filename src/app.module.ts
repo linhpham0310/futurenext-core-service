@@ -29,8 +29,6 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './modules/auth/controllers/auth.controller';
 import { AuthService } from './modules/auth/services/auth.service';
 import { GoogleStrategy } from './modules/auth/strategies/google.strategy';
-import { FacebookStrategy } from './modules/auth/strategies/facebook.strategy';
-import { AppleStrategy } from './modules/auth/strategies/apple.strategy';
 
 @Module({
   imports: [
@@ -93,8 +91,6 @@ import { AppleStrategy } from './modules/auth/strategies/apple.strategy';
       useClass: HttpExceptionFilter,
     },
     GoogleStrategy,
-    AppleStrategy,
-    FacebookStrategy,
   ],
   exports: [AuthService],
 })
