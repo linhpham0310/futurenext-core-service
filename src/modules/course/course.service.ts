@@ -226,7 +226,7 @@ export class CourseService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.course.findMany({
         where,
-        include: { instructor: { select: { fullName: true, avatar: true } } },
+        //include: { instructor: { select: { fullName: true, avatar: true } } },
         skip,
         take: Number(limit),
         orderBy: { createdAt: 'desc' },

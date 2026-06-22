@@ -38,11 +38,6 @@ export class CourseController {
     private readonly storage: SupabaseStorageService,
   ) {}
 
-  @Get()
-  async findAllPublished(@Query() query: any) {
-    return this.courseService.findAllPublished(query);
-  }
-
   @Get('public')
   async findAllPublic(@Query() query: any) {
     return this.courseService.findAllPublished(query);
@@ -52,6 +47,11 @@ export class CourseController {
   async getPublicCourseDetail(@Param('id') id: string, @Request() req) {
     const userId = req.user?.sub;
     return this.courseService.findOnePublishedWithEnrollmentStatus(id, userId);
+  }
+
+  @Get()
+  async findAllPublished(@Query() query: any) {
+    return this.courseService.findAllPublished(query);
   }
 
   @Get(':id')

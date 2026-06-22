@@ -225,8 +225,4 @@ export class AuthController {
       `${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`,
     );
   }
-  @Get('test')
-  testRoute() {
-    return { message: 'AuthController works!' };
-  }
 }
