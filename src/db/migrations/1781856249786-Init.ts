@@ -98,13 +98,13 @@ export class Init1781856249786 implements MigrationInterface {
       `ALTER TABLE "teacher_profiles" ADD "rejection_reason" character varying(1000)`,
     );
     await queryRunner.query(
-      `ALTER TABLE "teacher_profiles" ADD "experienceYears" integer`,
+      `ALTER TABLE "teacher_profiles" ADD "experience_years" integer`,
     );
     await queryRunner.query(
-      `ALTER TABLE "teacher_profiles" ADD "linkedinUrl" character varying(1024)`,
+      `ALTER TABLE "teacher_profiles" ADD "linkedin_url" character varying(1024)`,
     );
     await queryRunner.query(
-      `ALTER TABLE "teacher_profiles" ADD "rejectionReason" character varying(1000)`,
+      `ALTER TABLE "teacher_profiles" ADD "rejection_reason" character varying(1000)`,
     );
     await queryRunner.query(
       `ALTER TABLE "user_credentials" ADD CONSTRAINT "FK_dd0918407944553611bb3eb3ddc" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
@@ -158,13 +158,13 @@ export class Init1781856249786 implements MigrationInterface {
       `ALTER TABLE "user_credentials" DROP CONSTRAINT "FK_dd0918407944553611bb3eb3ddc"`,
     );
     await queryRunner.query(
-      `ALTER TABLE "teacher_profiles" DROP COLUMN "rejectionReason"`,
+      `ALTER TABLE "teacher_profiles" DROP COLUMN "rejection_reason"`,
     );
     await queryRunner.query(
-      `ALTER TABLE "teacher_profiles" DROP COLUMN "linkedinUrl"`,
+      `ALTER TABLE "teacher_profiles" DROP COLUMN "linkedin_url"`,
     );
     await queryRunner.query(
-      `ALTER TABLE "teacher_profiles" DROP COLUMN "experienceYears"`,
+      `ALTER TABLE "teacher_profiles" DROP COLUMN "experience_years"`,
     );
     await queryRunner.query(
       `ALTER TABLE "teacher_profiles" DROP COLUMN "rejection_reason"`,
