@@ -23,6 +23,10 @@ import { EmailService } from '../notifications/services/email.service'; // đún
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuthListener } from './listeners/auth.listener';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { SharedModule } from '@/shared/shared.module';
+import { FacebookStrategy } from './strategies/facebook.strategy';
+import { AppleStrategy } from './strategies/apple.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
 @Module({
   imports: [
     ConfigModule, // Cần ConfigService
@@ -37,7 +41,7 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
     ]),
     forwardRef(() => UsersModule),
     NotificationsModule,
-
+    SharedModule,
     PassportModule.register({ defaultStrategy: 'jwt' }), // Cấu hình Passport
     // Cấu hình JwtModule động để đọc secret/expiresIn từ ConfigService
     JwtModule.registerAsync({
@@ -63,18 +67,17 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
     EventEmitterModule.forRoot(),
     // Import EventEmitterModule nếu nó chưa được set global trong AppModule
     // EventEmitterModule,
-    // SharedModule thường là global, không cần import ở đây
   ],
   controllers: [AuthController], // Khai báo Controller
   providers: [
-    AuthService, // Khai báo Service
-    // Khai báo Strategies và Guards ở đây khi tạo
+    AuthService,
+    AuthListener,
     JwtStrategy,
     JwtRefreshStrategy,
-    EmailService,
-    AuthListener,
+    GoogleStrategy,
+    AppleStrategy,
+    FacebookStrategy,
     JwtRefreshGuard,
-    // Guard thường không cần khai báo ở đây nếu chỉ dùng @UseGuards
   ],
   // Export AuthService nếu module khác cần inject trực tiếp (thường không cần)
   exports: [AuthService, JwtModule, PassportModule],

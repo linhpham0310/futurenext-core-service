@@ -143,6 +143,65 @@ export class AuthController {
     return { accessToken: newAccessToken };
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(
+    @Req() req: RequestWithUser,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ message: string }> {
+    const userId = req.user.userId;
+    const refreshToken = req.cookies?.refreshToken;
+    const result = await this.authService.handleLogout(refreshToken, userId);
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: this.configService.get<string>('NODE_ENV') !== 'development',
+      sameSite: 'strict',
+      path: '/auth/refresh',
+    });
+    return result;
+  }
+
+  @Post('forgot-password')
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Yêu cầu mã đặt lại mật khẩu' })
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+    @Ip() ip: string,
+  ): Promise<{ message: string }> {
+    await this.authService.handleForgotPassword(dto, ip);
+    return {
+      message:
+        'Nếu địa chỉ email của bạn có trong hệ thống, chúng tôi đã gửi mã xác thực tới đó.',
+    };
+  }
+
+  @Post('reset-password')
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đặt lại mật khẩu mới bằng mã OTP' })
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+    @Ip() ip: string,
+  ): Promise<{ message: string }> {
+    await this.authService.handleResetPassword(dto, ip);
+    return {
+      message:
+        'Mật khẩu của bạn đã được cập nhật thành công. Vui lòng đăng nhập lại.',
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('change-password')
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @Request() req: RequestWithUser,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.changePassword(req.user.userId, dto);
+  }
+
   // Google
   @Get('google')
   @UseGuards(AuthGuard('google'))
@@ -203,64 +262,5 @@ export class AuthController {
     return res.redirect(
       `${process.env.FRONTEND_URL}/auth/social-callback?accessToken=${accessToken}`,
     );
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Post('logout')
-  @HttpCode(HttpStatus.OK)
-  async logout(
-    @Req() req: RequestWithUser,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<{ message: string }> {
-    const userId = req.user.userId;
-    const refreshToken = req.cookies?.refreshToken;
-    const result = await this.authService.handleLogout(refreshToken, userId);
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: this.configService.get<string>('NODE_ENV') !== 'development',
-      sameSite: 'strict',
-      path: '/auth/refresh',
-    });
-    return result;
-  }
-
-  @Post('forgot-password')
-  @UseGuards(ThrottlerGuard)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Yêu cầu mã đặt lại mật khẩu' })
-  async forgotPassword(
-    @Body() dto: ForgotPasswordDto,
-    @Ip() ip: string,
-  ): Promise<{ message: string }> {
-    await this.authService.handleForgotPassword(dto, ip);
-    return {
-      message:
-        'Nếu địa chỉ email của bạn có trong hệ thống, chúng tôi đã gửi mã xác thực tới đó.',
-    };
-  }
-
-  @Post('reset-password')
-  @UseGuards(ThrottlerGuard)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Đặt lại mật khẩu mới bằng mã OTP' })
-  async resetPassword(
-    @Body() dto: ResetPasswordDto,
-    @Ip() ip: string,
-  ): Promise<{ message: string }> {
-    await this.authService.handleResetPassword(dto, ip);
-    return {
-      message:
-        'Mật khẩu của bạn đã được cập nhật thành công. Vui lòng đăng nhập lại.',
-    };
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Patch('change-password')
-  @HttpCode(HttpStatus.OK)
-  async changePassword(
-    @Request() req: RequestWithUser,
-    @Body() dto: ChangePasswordDto,
-  ): Promise<{ message: string }> {
-    return this.authService.changePassword(req.user.userId, dto);
   }
 }
