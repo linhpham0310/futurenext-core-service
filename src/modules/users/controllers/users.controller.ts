@@ -460,7 +460,7 @@ export class StudentController {
       },
     });
     // TODO: Gọi service thanh toán để tạo payment URL
-    let paymentUrl = null;
+    const paymentUrl = null;
     // Giả định gọi Stripe, VNPay, QR
     if (paymentMethod === 'STRIPE') {
       // paymentUrl = await this.stripeService.createCheckoutSession(purchase.id, total);
