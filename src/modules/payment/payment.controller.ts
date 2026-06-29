@@ -1,24 +1,36 @@
-import { Controller, Get, Put, Body, UseGuards, Request } from '@nestjs/common';
-import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
-import { RolesGuard } from '../../shared/guards/roles.guard';
-import { Roles } from '../../shared/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import {
+  Controller,
+  Post,
+  Req,
+  Res,
+  Body,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
 import { PaymentService } from './payment.service';
-import { UpdatePaymentSettingDto } from './dto/update-payment-setting.dto';
 
-@Controller('teacher/payment')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.TEACHER)
+@Controller('payments')
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
-  @Get()
-  async getSettings(@Request() req) {
-    return this.paymentService.getSettings(req.user.sub);
+  @Post('stripe/webhook')
+  @HttpCode(HttpStatus.OK)
+  async stripeWebhook(@Req() req: Request, @Res() res: Response) {
+    const sig = req.headers['stripe-signature'] as string;
+    const result = await this.paymentService.handleStripeWebhook(req.body, sig);
+    return res.status(200).json(result);
   }
 
-  @Put()
-  async updateSettings(@Request() req, @Body() dto: UpdatePaymentSettingDto) {
-    return this.paymentService.updateSettings(req.user.sub, dto);
+  @Post('vnpay/webhook')
+  @HttpCode(HttpStatus.OK)
+  async vnpayWebhook(@Body() body: any) {
+    return this.paymentService.handleVnpayWebhook(body);
+  }
+
+  @Post('qr/webhook')
+  @HttpCode(HttpStatus.OK)
+  async qrWebhook(@Body() body: any) {
+    return this.paymentService.handleQrWebhook(body);
   }
 }

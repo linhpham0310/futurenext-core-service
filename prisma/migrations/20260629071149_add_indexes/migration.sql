@@ -30,8 +30,8 @@ CREATE TYPE "public"."TransactionStatus" AS ENUM ('SUCCESS', 'FAILED', 'PENDING'
 
 -- CreateTable
 CREATE TABLE "course_mgmt"."courses" (
-    "id" TEXT NOT NULL,
-    "instructorId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "instructorId" UUID NOT NULL,
     "title" VARCHAR(255) NOT NULL,
     "slug" TEXT NOT NULL,
     "description" TEXT,
@@ -42,25 +42,27 @@ CREATE TABLE "course_mgmt"."courses" (
     "aiMetadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "categoryId" UUID,
 
     CONSTRAINT "courses_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "course_mgmt"."sections" (
-    "id" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
     "title" VARCHAR(255) NOT NULL,
     "orderIndex" INTEGER NOT NULL DEFAULT 0,
+    "metadata" JSONB DEFAULT '{}',
 
     CONSTRAINT "sections_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "course_mgmt"."lessons" (
-    "id" TEXT NOT NULL,
-    "sectionId" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "sectionId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
     "title" VARCHAR(255) NOT NULL,
     "slug" TEXT NOT NULL,
     "type" "course_mgmt"."LessonType" NOT NULL DEFAULT 'ARTICLE',
@@ -77,8 +79,8 @@ CREATE TABLE "course_mgmt"."lessons" (
 
 -- CreateTable
 CREATE TABLE "course_mgmt"."curriculum_mappings" (
-    "id" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
     "keyConcept" TEXT NOT NULL,
     "taxonomyLevel" INTEGER NOT NULL DEFAULT 1,
 
@@ -87,9 +89,9 @@ CREATE TABLE "course_mgmt"."curriculum_mappings" (
 
 -- CreateTable
 CREATE TABLE "course_mgmt"."course_review_logs" (
-    "id" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
-    "adminId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
+    "adminId" UUID NOT NULL,
     "action" "course_mgmt"."CourseStatus" NOT NULL,
     "reason" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -99,10 +101,10 @@ CREATE TABLE "course_mgmt"."course_review_logs" (
 
 -- CreateTable
 CREATE TABLE "lx"."lx_learning_progress" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
-    "lessonId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
+    "lessonId" UUID NOT NULL,
     "status" "lx"."ProgressStatus" NOT NULL DEFAULT 'NOT_STARTED',
     "lastPosition" INTEGER NOT NULL DEFAULT 0,
     "score" DECIMAL(5,2),
@@ -115,9 +117,9 @@ CREATE TABLE "lx"."lx_learning_progress" (
 
 -- CreateTable
 CREATE TABLE "lx"."lx_ai_interactions" (
-    "id" TEXT NOT NULL,
-    "user_id" TEXT NOT NULL,
-    "lesson_id" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "lesson_id" UUID NOT NULL,
     "interaction_type" VARCHAR(20) NOT NULL,
     "prompt" TEXT NOT NULL,
     "response" TEXT NOT NULL,
@@ -129,8 +131,8 @@ CREATE TABLE "lx"."lx_ai_interactions" (
 
 -- CreateTable
 CREATE TABLE "lx"."lx_lesson_contexts" (
-    "id" TEXT NOT NULL,
-    "lesson_id" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "lesson_id" UUID NOT NULL,
     "chunk_index" INTEGER NOT NULL,
     "content_chunk" TEXT NOT NULL,
     "metadata" JSONB DEFAULT '{}',
@@ -140,23 +142,25 @@ CREATE TABLE "lx"."lx_lesson_contexts" (
 );
 
 -- CreateTable
-CREATE TABLE "lx"."purchases" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
+CREATE TABLE "public"."purchases" (
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
     "amount" DECIMAL(12,2) NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'COMPLETED',
     "purchasedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "paymentMethod" TEXT DEFAULT 'UNKNOWN',
+    "paymentId" TEXT,
 
     CONSTRAINT "purchases_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "public"."favorites" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "favorites_pkey" PRIMARY KEY ("id")
@@ -164,9 +168,9 @@ CREATE TABLE "public"."favorites" (
 
 -- CreateTable
 CREATE TABLE "public"."reviews" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
     "rating" INTEGER NOT NULL,
     "comment" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -177,8 +181,8 @@ CREATE TABLE "public"."reviews" (
 
 -- CreateTable
 CREATE TABLE "public"."notifications" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "link" TEXT,
@@ -190,9 +194,9 @@ CREATE TABLE "public"."notifications" (
 
 -- CreateTable
 CREATE TABLE "public"."certificates" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
     "studentName" VARCHAR(255) NOT NULL,
     "courseTitle" VARCHAR(255) NOT NULL,
     "certificateUrl" TEXT NOT NULL,
@@ -203,9 +207,9 @@ CREATE TABLE "public"."certificates" (
 
 -- CreateTable
 CREATE TABLE "public"."announcements" (
-    "id" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
-    "teacherId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
+    "teacherId" UUID NOT NULL,
     "title" VARCHAR(255) NOT NULL,
     "content" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -215,9 +219,9 @@ CREATE TABLE "public"."announcements" (
 
 -- CreateTable
 CREATE TABLE "public"."exams" (
-    "id" TEXT NOT NULL,
-    "teacherId" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "teacherId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
     "title" TEXT NOT NULL,
     "topic" TEXT,
     "type" "public"."ExamType" NOT NULL DEFAULT 'MCQ',
@@ -230,10 +234,24 @@ CREATE TABLE "public"."exams" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."exam_questions" (
+    "id" UUID NOT NULL,
+    "examId" UUID NOT NULL,
+    "text" TEXT NOT NULL,
+    "type" "public"."QuestionType" NOT NULL DEFAULT 'MCQ',
+    "options" JSONB,
+    "correctAnswer" TEXT,
+    "explanation" TEXT,
+    "orderIndex" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "exam_questions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."exam_results" (
-    "id" TEXT NOT NULL,
-    "examId" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "examId" UUID NOT NULL,
+    "userId" UUID NOT NULL,
     "score" DECIMAL(5,2),
     "totalQuestions" INTEGER NOT NULL,
     "answers" JSONB NOT NULL DEFAULT '{}',
@@ -245,8 +263,8 @@ CREATE TABLE "public"."exam_results" (
 
 -- CreateTable
 CREATE TABLE "public"."payment_settings" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
     "bankName" VARCHAR(100),
     "bankAccount" VARCHAR(50),
     "accountHolder" VARCHAR(255),
@@ -258,10 +276,10 @@ CREATE TABLE "public"."payment_settings" (
 
 -- CreateTable
 CREATE TABLE "public"."revenue_transactions" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "teacherId" TEXT NOT NULL,
-    "courseId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "teacherId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
     "amount" DECIMAL(12,2) NOT NULL,
     "type" TEXT NOT NULL,
     "status" TEXT NOT NULL,
@@ -271,30 +289,62 @@ CREATE TABLE "public"."revenue_transactions" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."questions" (
-    "id" TEXT NOT NULL,
-    "examId" TEXT NOT NULL,
-    "text" TEXT NOT NULL,
-    "type" "public"."QuestionType" NOT NULL DEFAULT 'MCQ',
-    "options" JSONB,
-    "correctAnswer" TEXT,
-    "explanation" TEXT,
-    "orderIndex" INTEGER NOT NULL DEFAULT 0,
-
-    CONSTRAINT "questions_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "public"."transactions" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "courseId" TEXT,
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "courseId" UUID,
     "amount" DECIMAL(12,2) NOT NULL,
     "type" "public"."TransactionType" NOT NULL DEFAULT 'PURCHASE',
     "status" "public"."TransactionStatus" NOT NULL DEFAULT 'SUCCESS',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "transactions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."Category" (
+    "id" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "description" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Category_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."SystemSetting" (
+    "id" UUID NOT NULL,
+    "key" TEXT NOT NULL,
+    "value" JSONB NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SystemSetting_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."CartItem" (
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "CartItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."Question" (
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "courseId" UUID NOT NULL,
+    "question" TEXT NOT NULL,
+    "answer" TEXT,
+    "answeredAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Question_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -311,6 +361,9 @@ CREATE INDEX "sections_courseId_idx" ON "course_mgmt"."sections"("courseId");
 
 -- CreateIndex
 CREATE INDEX "lessons_sectionId_idx" ON "course_mgmt"."lessons"("sectionId");
+
+-- CreateIndex
+CREATE INDEX "lessons_courseId_idx" ON "course_mgmt"."lessons"("courseId");
 
 -- CreateIndex
 CREATE INDEX "curriculum_mappings_courseId_idx" ON "course_mgmt"."curriculum_mappings"("courseId");
@@ -331,13 +384,13 @@ CREATE INDEX "lx_lesson_contexts_lesson_id_idx" ON "lx"."lx_lesson_contexts"("le
 CREATE UNIQUE INDEX "lx_lesson_contexts_lesson_id_chunk_index_key" ON "lx"."lx_lesson_contexts"("lesson_id", "chunk_index");
 
 -- CreateIndex
-CREATE INDEX "purchases_userId_idx" ON "lx"."purchases"("userId");
+CREATE INDEX "purchases_userId_idx" ON "public"."purchases"("userId");
 
 -- CreateIndex
-CREATE INDEX "purchases_courseId_idx" ON "lx"."purchases"("courseId");
+CREATE INDEX "purchases_courseId_idx" ON "public"."purchases"("courseId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "purchases_userId_courseId_key" ON "lx"."purchases"("userId", "courseId");
+CREATE UNIQUE INDEX "purchases_userId_courseId_key" ON "public"."purchases"("userId", "courseId");
 
 -- CreateIndex
 CREATE INDEX "favorites_userId_idx" ON "public"."favorites"("userId");
@@ -373,6 +426,9 @@ CREATE INDEX "exams_teacherId_idx" ON "public"."exams"("teacherId");
 CREATE INDEX "exams_courseId_idx" ON "public"."exams"("courseId");
 
 -- CreateIndex
+CREATE INDEX "exam_questions_examId_idx" ON "public"."exam_questions"("examId");
+
+-- CreateIndex
 CREATE INDEX "exam_results_userId_idx" ON "public"."exam_results"("userId");
 
 -- CreateIndex
@@ -388,10 +444,28 @@ CREATE INDEX "revenue_transactions_teacherId_idx" ON "public"."revenue_transacti
 CREATE INDEX "revenue_transactions_userId_idx" ON "public"."revenue_transactions"("userId");
 
 -- CreateIndex
-CREATE INDEX "questions_examId_idx" ON "public"."questions"("examId");
+CREATE INDEX "transactions_userId_idx" ON "public"."transactions"("userId");
 
 -- CreateIndex
-CREATE INDEX "transactions_userId_idx" ON "public"."transactions"("userId");
+CREATE UNIQUE INDEX "Category_name_key" ON "public"."Category"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Category_slug_key" ON "public"."Category"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SystemSetting_key_key" ON "public"."SystemSetting"("key");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CartItem_userId_courseId_key" ON "public"."CartItem"("userId", "courseId");
+
+-- CreateIndex
+CREATE INDEX "Question_userId_idx" ON "public"."Question"("userId");
+
+-- CreateIndex
+CREATE INDEX "Question_courseId_idx" ON "public"."Question"("courseId");
+
+-- AddForeignKey
+ALTER TABLE "course_mgmt"."courses" ADD CONSTRAINT "courses_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "public"."Category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "course_mgmt"."sections" ADD CONSTRAINT "sections_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -400,16 +474,13 @@ ALTER TABLE "course_mgmt"."sections" ADD CONSTRAINT "sections_courseId_fkey" FOR
 ALTER TABLE "course_mgmt"."lessons" ADD CONSTRAINT "lessons_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "course_mgmt"."sections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "course_mgmt"."lessons" ADD CONSTRAINT "lessons_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "course_mgmt"."curriculum_mappings" ADD CONSTRAINT "curriculum_mappings_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "course_mgmt"."course_review_logs" ADD CONSTRAINT "course_review_logs_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "lx"."purchases" ADD CONSTRAINT "purchases_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."purchases" ADD CONSTRAINT "purchases_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."favorites" ADD CONSTRAINT "favorites_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -427,7 +498,10 @@ ALTER TABLE "public"."announcements" ADD CONSTRAINT "announcements_courseId_fkey
 ALTER TABLE "public"."exams" ADD CONSTRAINT "exams_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "public"."exam_questions" ADD CONSTRAINT "exam_questions_examId_fkey" FOREIGN KEY ("examId") REFERENCES "public"."exams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "public"."exam_results" ADD CONSTRAINT "exam_results_examId_fkey" FOREIGN KEY ("examId") REFERENCES "public"."exams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."questions" ADD CONSTRAINT "questions_examId_fkey" FOREIGN KEY ("examId") REFERENCES "public"."exams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."Question" ADD CONSTRAINT "Question_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;

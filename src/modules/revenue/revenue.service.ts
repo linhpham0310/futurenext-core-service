@@ -74,7 +74,7 @@ export class RevenueService {
     const users =
       userIds.length > 0
         ? ((await this.prisma.$queryRawUnsafe(
-            `SELECT id, "fullName" FROM public.users WHERE id = ANY($1::uuid[])`,
+            `SELECT id, "fullName" FROM "users" WHERE id = ANY($1::uuid[])`,
             userIds,
           )) as { id: string; fullName: string }[])
         : [];
@@ -172,7 +172,7 @@ export class RevenueService {
     const users =
       userIds.length > 0
         ? ((await this.prisma.$queryRawUnsafe(
-            `SELECT id, "fullName" FROM public.users WHERE id = ANY($1::uuid[])`,
+            `SELECT id, "fullName" FROM "users" WHERE id = ANY($1::uuid[])`,
             userIds,
           )) as { id: string; fullName: string }[])
         : [];

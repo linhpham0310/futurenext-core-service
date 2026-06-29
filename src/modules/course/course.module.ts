@@ -13,12 +13,14 @@ import {
   AdminCourseController,
 } from './controllers/course.controller';
 import { User } from '../users/entities/user.entity';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
     PrismaModule,
     SupabaseStorageModule,
+    AiModule,
   ],
   controllers: [
     CourseController,

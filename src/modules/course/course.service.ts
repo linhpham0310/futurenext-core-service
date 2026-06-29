@@ -22,6 +22,8 @@ import { UpdateOutcomesDto } from './dto/update-outcomes.dto';
 import { User } from '../users/entities/user.entity';
 import slugify from 'slugify';
 import { nanoid } from 'nanoid';
+import { AiService } from '../ai/ai.service';
+import { UpdateLessonFullDto } from './dto/update-lesson-full.dto';
 
 @Injectable()
 export class CourseService {
@@ -30,6 +32,7 @@ export class CourseService {
     private eventEmitter: EventEmitter2,
     @InjectEntityManager() private entityManager: EntityManager,
     private supabaseStorage: SupabaseStorageService,
+    private aiService: AiService,
   ) {}
 
   // ==================== SUPABASE STORAGE ====================
@@ -186,30 +189,60 @@ export class CourseService {
           orderBy: { orderIndex: 'asc' },
           include: { lessons: { orderBy: { orderIndex: 'asc' } } },
         },
+        reviews: {
+          include: { user: { select: { fullName: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
         _count: { select: { purchases: true } },
       },
     });
     if (!course) throw new NotFoundException('Không tìm thấy khóa học');
 
     let isEnrolled = false;
+    let progress = 0;
     if (userId) {
       const purchase = await this.prisma.purchase.findUnique({
         where: { userId_courseId: { userId, courseId } },
       });
       isEnrolled = !!purchase;
+      if (isEnrolled) {
+        // Tính tiến độ
+        const totalLessons = await this.prisma.lesson.count({
+          where: { courseId },
+        });
+        const completed = await this.prisma.learningProgress.count({
+          where: { userId, courseId, status: 'COMPLETED' },
+        });
+        progress =
+          totalLessons > 0 ? Math.round((completed / totalLessons) * 100) : 0;
+      }
     }
 
     const totalDuration = course.sections
       .flatMap((s) => s.lessons)
       .reduce((sum, l) => sum + (l.duration || 0), 0);
 
+    // Lấy câu hỏi (nếu có)
+    const questions = await this.prisma.question.findMany({
+      where: { courseId, answer: { not: null } },
+      include: { user: { select: { fullName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
       ...course,
       students: course._count.purchases,
       duration: `${Math.round(totalDuration / 60)} giờ`,
-      rating: 0,
+      rating:
+        course.reviews.length > 0
+          ? course.reviews.reduce((sum, r) => sum + r.rating, 0) /
+            course.reviews.length
+          : 0,
       outcomes: (course.outcomes as string[]) || [],
       isEnrolled,
+      progress,
+      reviews: course.reviews,
+      questions,
     };
   }
 
@@ -509,12 +542,60 @@ export class CourseService {
   async getLessonById(lessonId: string, teacherId: string) {
     const lesson = await this.prisma.lesson.findUnique({
       where: { id: lessonId },
-      include: { section: { include: { course: true } } },
+      include: {
+        section: { include: { course: true } },
+      },
     });
     if (!lesson) throw new NotFoundException('Không tìm thấy bài học');
     if (lesson.section.course.instructorId !== teacherId)
       throw new ForbiddenException('Bạn không có quyền xem bài học này');
-    return lesson;
+
+    // Trả về thêm aiMetadata, mainTopics (nếu có)
+    const aiMetadata = (lesson.aiMetadata as any) || {};
+    return {
+      ...lesson,
+      isAiEnabled: aiMetadata.isAiEnabled || false,
+      aiContext: {
+        customInstructions: aiMetadata.customInstructions || '',
+        faqs: aiMetadata.faqs || [],
+      },
+      mainTopics: aiMetadata.mainTopics || [],
+      examId: aiMetadata.examId || null,
+    };
+  }
+
+  async updateLessonFull(
+    lessonId: string,
+    dto: UpdateLessonFullDto,
+    teacherId: string,
+  ) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: { section: { include: { course: true } } },
+    });
+    if (!lesson || lesson.section.course.instructorId !== teacherId)
+      throw new ForbiddenException('Bạn không có quyền cập nhật bài học này');
+
+    const updateData: any = {};
+    if (dto.content !== undefined) updateData.content = dto.content;
+    if (dto.duration !== undefined) updateData.duration = dto.duration;
+
+    // Cập nhật aiMetadata
+    const currentAiMetadata = (lesson.aiMetadata as any) || {};
+    if (dto.isAiEnabled !== undefined)
+      currentAiMetadata.isAiEnabled = dto.isAiEnabled;
+    if (dto.aiContext) {
+      currentAiMetadata.customInstructions = dto.aiContext.customInstructions;
+      currentAiMetadata.faqs = dto.aiContext.faqs;
+    }
+    if (dto.mainTopics) currentAiMetadata.mainTopics = dto.mainTopics;
+    if (dto.examId) currentAiMetadata.examId = dto.examId;
+    updateData.aiMetadata = currentAiMetadata;
+
+    return this.prisma.lesson.update({
+      where: { id: lessonId },
+      data: updateData,
+    });
   }
 
   async updateLessonMetadata(lessonId: string, dto: UpdateLessonMetadataDto) {
@@ -522,7 +603,7 @@ export class CourseService {
       where: { id: lessonId },
       data: {
         aiMetadata: {
-          keyConcepts: dto.keyConcepts,
+          mainTopics: dto.mainTopics,
           updatedAt: new Date().toISOString(),
           ...dto.otherMetadata,
         },
@@ -704,6 +785,7 @@ export class CourseService {
     });
     if (!course)
       throw new ForbiddenException('Bạn không phải chủ sở hữu khóa học');
+
     const enrollments = await this.prisma.purchase.findMany({
       where: { courseId, status: 'COMPLETED' },
       include: {
@@ -711,14 +793,33 @@ export class CourseService {
       },
       orderBy: { purchasedAt: 'desc' },
     });
-    return enrollments.map((e) => ({
-      id: e.user.id,
-      fullName: e.user.fullName,
-      email: e.user.email,
-      progress: 0,
-      joinedAt: e.purchasedAt,
-      lastActiveAt: null,
-    }));
+
+    // Tính tiến độ cho từng học viên
+    const totalLessons = await this.prisma.lesson.count({
+      where: { courseId },
+    });
+    const result = await Promise.all(
+      enrollments.map(async (e) => {
+        const completed = await this.prisma.learningProgress.count({
+          where: { userId: e.userId, courseId, status: 'COMPLETED' },
+        });
+        const progress =
+          totalLessons > 0 ? Math.round((completed / totalLessons) * 100) : 0;
+        const lastActive = await this.prisma.learningProgress.findFirst({
+          where: { userId: e.userId, courseId },
+          orderBy: { updatedAt: 'desc' },
+        });
+        return {
+          id: e.user.id,
+          fullName: e.user.fullName,
+          email: e.user.email,
+          progress,
+          joinedAt: e.purchasedAt,
+          lastActiveAt: lastActive?.updatedAt || null,
+        };
+      }),
+    );
+    return result;
   }
 
   async getAllStudentsByTeacher(teacherId: string) {
@@ -746,6 +847,14 @@ export class CourseService {
       courseTitle: courses.find((c) => c.id === enrollment.courseId)?.title,
       enrolledAt: enrollment.purchasedAt,
     }));
+  }
+
+  async generateOutline(courseId: string): Promise<any[]> {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+    return this.aiService.generateOutline(course.title, course.description);
   }
 
   // ==================== UTILITY ====================

@@ -15,6 +15,8 @@ import { UserQueryDto } from '../dto/user-query.dto';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { UpdateUserFullDto } from '../dto/update-user-full.dto';
+import { AuthService } from '../../auth/services/auth.service';
+import { SecurityAuditLog } from '../../../shared/providers/audit/audit.entity';
 
 @Injectable()
 export class UsersService {
@@ -27,6 +29,9 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     private readonly auditService: AuditService,
     private prisma: PrismaService,
+    private authService: AuthService,
+    @InjectRepository(SecurityAuditLog)
+    private auditLogRepository: Repository<SecurityAuditLog>,
   ) {}
 
   async findOneByEmail(email: string): Promise<User | null> {
@@ -242,5 +247,36 @@ export class UsersService {
 
   async findById(id: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { id } });
+  }
+
+  async triggerResetPassword(userId: string, adminId: string, ip: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    // Gọi AuthService để gửi reset email
+    // Giả định đã inject AuthService
+    await this.authService.handleForgotPassword(
+      { email: user.email }, // ForgotPasswordDto
+      ip,
+    );
+    await this.auditService.log({
+      action: 'ADMIN_TRIGGERED_RESET_PASSWORD',
+      actorId: adminId,
+      ip,
+      details: { targetUserId: userId },
+    });
+  }
+
+  async getUserAuditLogs(userId: string) {
+    return this.auditLogRepository.find({
+      where: { actorId: userId },
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
+  }
+
+  async countActiveAdmins(): Promise<number> {
+    return this.userRepository.count({
+      where: { role: UserRole.ADMIN, status: UserStatus.ACTIVE },
+    });
   }
 }

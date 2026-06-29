@@ -1,0 +1,311 @@
+{
+  "info": {
+    "name": "FutureNext API Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test-api@example.com\",\n  \"password\": \"Password123@\",\n  \"fullName\": \"API Test User\",\n  \"agreeTerms\": true,\n  \"role\": \"student\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/auth/register",
+              "host": ["{{BASE_URL}}"],
+              "path": ["auth", "register"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student@test.com\",\n  \"password\": \"Student123@\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/auth/login",
+              "host": ["{{BASE_URL}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/users/me/profile",
+              "host": ["{{BASE_URL}}"],
+              "path": ["users", "me", "profile"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Course",
+      "item": [
+        {
+          "name": "Create Course (Teacher)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TEACHER_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"API Test Course\",\n  \"description\": \"Test description\",\n  \"price\": 0\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/teacher/courses",
+              "host": ["{{BASE_URL}}"],
+              "path": ["teacher", "courses"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Public Courses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{BASE_URL}}/courses/public",
+              "host": ["{{BASE_URL}}"],
+              "path": ["courses", "public"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Exam",
+      "item": [
+        {
+          "name": "Generate Quiz with AI",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TEACHER_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"React Hooks\",\n  \"type\": \"MCQ\",\n  \"duration\": 60,\n  \"numQuestions\": 5\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/teacher/exams/generate",
+              "host": ["{{BASE_URL}}"],
+              "path": ["teacher", "exams", "generate"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Exam",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TEACHER_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"API Test Quiz\",\n  \"topic\": \"React\",\n  \"type\": \"MCQ\",\n  \"duration\": 60,\n  \"questions\": [\n    {\n      \"text\": \"What is React?\",\n      \"type\": \"MCQ\",\n      \"options\": [\"Library\", \"Framework\", \"Language\", \"Tool\"],\n      \"correctAnswer\": \"Library\",\n      \"explanation\": \"React is a library\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/teacher/exams",
+              "host": ["{{BASE_URL}}"],
+              "path": ["teacher", "exams"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Question Bank",
+      "item": [
+        {
+          "name": "Create Question Bank",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TEACHER_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"API Test Bank\",\n  \"description\": \"Test bank description\",\n  \"isPublic\": false\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/teacher/question-banks",
+              "host": ["{{BASE_URL}}"],
+              "path": ["teacher", "question-banks"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Question to Bank",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{TEACHER_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"MCQ\",\n  \"questionText\": \"What is useState?\",\n  \"options\": [\"Hook\", \"Class\", \"Function\", \"Object\"],\n  \"correctAnswer\": \"Hook\",\n  \"explanation\": \"useState is a React Hook\",\n  \"difficulty\": \"easy\",\n  \"tags\": [\"react\", \"hooks\"]\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/teacher/question-banks/{{BANK_ID}}/items",
+              "host": ["{{BASE_URL}}"],
+              "path": ["teacher", "question-banks", "{{BANK_ID}}", "items"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payment",
+      "item": [
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{STUDENT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/student/cart",
+              "host": ["{{BASE_URL}}"],
+              "path": ["student", "cart"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{STUDENT_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{COURSE_ID}}\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/student/cart",
+              "host": ["{{BASE_URL}}"],
+              "path": ["student", "cart"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "ACCESS_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "REFRESH_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "TEACHER_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "STUDENT_TOKEN",
+      "value": ""
+    },
+    {
+      "key": "COURSE_ID",
+      "value": ""
+    },
+    {
+      "key": "BANK_ID",
+      "value": ""
+    }
+  ]
+}
