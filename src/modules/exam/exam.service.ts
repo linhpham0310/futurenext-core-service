@@ -9,10 +9,14 @@ import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
 import { PublishExamDto } from './dto/publish-exam.dto';
 import { GenerateQuizDto } from './dto/generate-quiz.dto';
+import { AiService } from '../ai/ai.service';
 
 @Injectable()
 export class ExamService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private aiService: AiService,
+  ) {}
 
   // ==================== TEACHER ====================
   async getExamsByTeacher(teacherId: string) {
@@ -23,22 +27,30 @@ export class ExamService {
   }
 
   async createExam(teacherId: string, dto: CreateExamDto) {
-    // Gộp dữ liệu: teacherId và questions (lưu dưới dạng JSON)
-    const data: any = {
-      title: dto.title,
-      topic: dto.topic,
-      type: dto.type,
-      duration: dto.duration,
-      teacherId,
-      questions: dto.questions,
-    };
-    return this.prisma.exam.create({ data });
+    const { questions, ...examData } = dto;
+    return this.prisma.exam.create({
+      data: {
+        ...examData,
+        teacherId,
+        examQuestions: {
+          create: questions.map((q, idx) => ({
+            text: q.text,
+            type: q.type,
+            options: q.options || [],
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            orderIndex: idx + 1,
+          })),
+        },
+      },
+      include: { examQuestions: true },
+    });
   }
 
   async getExamById(examId: string, teacherId?: string) {
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
-      include: { questions: true }, // nếu có model riêng
+      include: { examQuestions: true }, // nếu có model riêng
     });
     if (!exam) throw new NotFoundException('Không tìm thấy đề thi');
     if (teacherId && exam.teacherId !== teacherId)
@@ -48,11 +60,31 @@ export class ExamService {
 
   async updateExam(examId: string, teacherId: string, dto: UpdateExamDto) {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId } });
-    if (!exam) throw new NotFoundException();
-    if (exam.teacherId !== teacherId) throw new ForbiddenException();
-    return this.prisma.exam.update({
-      where: { id: examId },
-      data: dto,
+    if (!exam || exam.teacherId !== teacherId) throw new ForbiddenException();
+    const { questions = [], ...examData } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Nếu có questions trong DTO thì xóa cũ và tạo mới
+      if (dto.questions && dto.questions.length > 0) {
+        await tx.examQuestion.deleteMany({ where: { examId } });
+        await tx.examQuestion.createMany({
+          data: questions.map((q, idx) => ({
+            examId,
+            text: q.text,
+            type: q.type,
+            options: q.options || [],
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            orderIndex: idx + 1,
+          })),
+        });
+      }
+      // Cập nhật thông tin exam (không bao gồm questions)
+      return tx.exam.update({
+        where: { id: examId },
+        data: examData,
+        include: { examQuestions: true },
+      });
     });
   }
 
@@ -128,7 +160,7 @@ export class ExamService {
   async getExamForStudent(examId: string, studentId: string) {
     const exam = await this.prisma.exam.findFirst({
       where: { id: examId, isPublished: true },
-      include: { questions: true },
+      include: { examQuestions: true },
     });
     if (!exam) throw new NotFoundException('Không tìm thấy đề thi');
     if (exam.courseId) {
@@ -149,7 +181,7 @@ export class ExamService {
   ) {
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
-      include: { questions: true },
+      include: { examQuestions: true },
     });
     if (!exam) throw new NotFoundException();
     const existing = await this.prisma.examResult.findUnique({
@@ -161,7 +193,7 @@ export class ExamService {
     // Tính điểm cho MCQ
     if (exam.type === 'MCQ') {
       let correct = 0;
-      for (const q of exam.questions as any[]) {
+      for (const q of exam.examQuestions as any[]) {
         if (answers[q.id] === q.correctAnswer) correct++;
       }
       score = correct;
@@ -172,7 +204,7 @@ export class ExamService {
         examId,
         userId: studentId,
         score,
-        totalQuestions: (exam.questions as any[]).length,
+        totalQuestions: (exam.examQuestions as any[]).length,
         answers,
         submittedAt: new Date(),
       },
@@ -186,10 +218,10 @@ export class ExamService {
     if (!result) throw new NotFoundException('Bạn chưa làm bài thi này');
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
-      include: { questions: true },
+      include: { examQuestions: true },
     });
-    const questions = exam.questions as any[];
-    const details = questions.map((q) => ({
+    const examQuestions = exam.examQuestions as any[];
+    const details = examQuestions.map((q) => ({
       questionText: q.text,
       userAnswer: result.answers[q.id],
       correctAnswer: q.correctAnswer,
@@ -206,40 +238,24 @@ export class ExamService {
   }
 
   // ==================== AI GENERATION ====================
+  // src/modules/exam/exam.service.ts
   async generateQuestionsByAI(
     topic: string,
     type: string,
     numQuestions: number,
   ) {
-    // TODO: gọi AI thực tế (OpenAI, Gemini, ...)
-    const questions: any[] = [];
-    for (let i = 0; i < numQuestions; i++) {
-      questions.push({
-        id: `temp_${i + 1}`,
-        text: `Câu hỏi mẫu về ${topic} - số ${i + 1}`,
-        type: type === 'ESSAY' ? 'ESSAY' : 'MCQ',
-        options:
-          type !== 'ESSAY'
-            ? ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D']
-            : undefined,
-        correctAnswer: type !== 'ESSAY' ? 'A' : undefined,
-        explanation: 'Giải thích mẫu',
-      });
-    }
-    return questions;
-  }
-
-  async generateQuiz(dto: GenerateQuizDto) {
-    // Tạm thời trả về câu hỏi mẫu
-    const questions: any[] = [];
-    for (let i = 0; i < dto.numQuestions; i++) {
-      questions.push({
-        question_text: `Câu hỏi mức độ ${dto.difficulty}: ${dto.content.substring(0, 30)}...`,
-        options: ['Option A', 'Option B', 'Option C', 'Option D'],
-        correct_answer: 'Option A',
-        explanation: `Đây là giải thích cho câu hỏi số ${i + 1}`,
-      });
-    }
-    return questions;
+    const examQuestions = await this.aiService.generateQuizQuestions(
+      topic,
+      type,
+      numQuestions,
+    );
+    return examQuestions.map((q: any, index: number) => ({
+      id: `temp_${index + 1}`,
+      text: q.text,
+      type: q.type || 'MCQ',
+      options: q.options || [],
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+    }));
   }
 }

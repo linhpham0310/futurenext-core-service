@@ -40,7 +40,7 @@ describe('TeacherProfilesService', () => {
     rollbackTransaction: jest.fn(),
     release: jest.fn(),
     manager: {
-      save: jest.fn(),
+      save: jest.fn().mockResolvedValue({}),
     },
   };
 
@@ -248,7 +248,7 @@ describe('TeacherProfilesService', () => {
       mockTeacherProfileRepo.findOne.mockResolvedValue(mockProfile);
 
       // Giả lập DB văng lỗi khi đang save
-      mockQueryRunner.manager.save.mockRejectedValue(new Error('DB Error'));
+      mockQueryRunner.manager.save.mockRejectedValueOnce(new Error('DB Error'));
 
       await expect(
         service.reviewProfile(adminId, profileId, reviewDto),

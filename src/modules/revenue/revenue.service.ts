@@ -71,15 +71,11 @@ export class RevenueService {
     const userIds = [...new Set(items.map((p) => p.userId))];
     // Thay cả 2 chỗ trong revenue.service.ts
 
-    const users =
-      userIds.length > 0
-        ? ((await this.prisma.$queryRawUnsafe(
-            `SELECT id, "fullName" FROM public.users WHERE id = ANY($1::uuid[])`,
-            userIds,
-          )) as { id: string; fullName: string }[])
-        : [];
-
-    const userMap = new Map(users.map((u) => [u.id, u.fullName]));
+    const users = await this.prisma.$queryRawUnsafe(
+      `SELECT id, full_name FROM public.users WHERE id = ANY($1::uuid[])`,
+      userIds,
+    );
+    const userMap = new Map(users.map((u) => [u.id, u.full_name]));
     return {
       items: items.map((p) => ({
         id: p.id,
@@ -169,15 +165,11 @@ export class RevenueService {
     const userIds = [...new Set(items.map((p) => p.userId))];
     // Thay cả 2 chỗ trong revenue.service.ts
 
-    const users =
-      userIds.length > 0
-        ? ((await this.prisma.$queryRawUnsafe(
-            `SELECT id, "fullName" FROM public.users WHERE id = ANY($1::uuid[])`,
-            userIds,
-          )) as { id: string; fullName: string }[])
-        : [];
-
-    const userMap = new Map(users.map((u) => [u.id, u.fullName]));
+    const users = await this.prisma.$queryRawUnsafe(
+      `SELECT id, full_name FROM public.users WHERE id = ANY($1::uuid[])`,
+      userIds,
+    );
+    const userMap = new Map(users.map((u) => [u.id, u.full_name]));
     return {
       items: items.map((p) => ({
         id: p.id,

@@ -1,24 +1,23 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema",  "postgresqlExtensions", "driverAdapters"]
+  previewFeatures = ["multiSchema", "postgresqlExtensions", "driverAdapters"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")  
+  url      = env("DATABASE_URL")
   schemas  = ["course_mgmt", "lx", "public"]
-  //extensions = [uuid_ossp, vector] 
-  directUrl = env("DIRECT_URL")  
+  directUrl = env("DIRECT_URL")
 }
 
+// ==================== ENUMS ====================
 
 enum CourseStatus {
   DRAFT
   SUBMITTED
-  PUBLISHED
+  APPROVED
   REJECTED
   ARCHIVED
-
   @@schema("course_mgmt")
 }
 
@@ -27,288 +26,14 @@ enum LessonType {
   ARTICLE
   QUIZ
   LAB
-
   @@schema("course_mgmt")
 }
-
-// ==================== course_mgmt ====================
-
-
-model Course {
-  id           String       @id @default(uuid())
-  instructorId String
-  lessons      Lesson[]
-  title        String       @db.VarChar(255)
-  slug         String       @unique
-  description  String?      @db.Text
-  thumbnailUrl String?
-  price        Decimal      @default(0.0) @db.Decimal(12, 2)
-  status       CourseStatus @default(DRAFT)
-  outcomes     Json?
-  aiMetadata   Json?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  sections          Section[]
-  reviewLogs        CourseReviewLog[]
-  curriculumMapping CurriculumMapping[]
-  purchases         Purchase[]
-  favorites         Favorite[]
-  reviews           Review[]
-  certificates      Certificate[]
-  announcements     Announcement[]
-  exams   Exam[]
-
-  @@index([instructorId])
-  @@index([status])
-  @@schema("course_mgmt")
-  @@map("courses")
-}
-
-model Section {
-  id         String @id @default(uuid())
-  courseId   String
-  title      String @db.VarChar(255)
-  orderIndex Int    @default(0)
-
-  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  lessons Lesson[]
-
-  @@index([courseId])
-  @@schema("course_mgmt")
-  @@map("sections")
-}
-
-model Lesson {
-  id            String     @id @default(uuid())
-  sectionId     String
-  courseId      String
-  title         String     @db.VarChar(255)
-  slug          String
-  type          LessonType @default(ARTICLE)
-  content       String?    @db.Text
-  duration      Int?       @default(0)
-  orderIndex    Int        @default(0)
-  isFreePreview Boolean    @default(false)
-  aiMetadata    Json       @default("[]")
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-
-
-  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-
-  @@index([sectionId])
-  @@schema("course_mgmt")
-  @@map("lessons")
-}
-
-model CurriculumMapping {
-  id            String @id @default(uuid())
-  courseId      String
-  keyConcept    String
-  taxonomyLevel Int    @default(1)
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@index([courseId])
-  @@schema("course_mgmt")
-  @@map("curriculum_mappings")
-}
-
-model CourseReviewLog {
-  id        String       @id @default(uuid())
-  courseId  String
-  adminId   String
-  action    CourseStatus
-  reason    String?      @db.Text
-  createdAt DateTime     @default(now())
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@schema("course_mgmt")
-  @@map("course_review_logs")
-}
-
-// ---------------------------------------------------------
-// MODULE: LEARNING EXPERIENCE (LX) - SPRINT 1
-// TASK: LX-BE-1.1
-// ---------------------------------------------------------
 
 enum ProgressStatus {
   NOT_STARTED
   IN_PROGRESS
   COMPLETED
-
   @@schema("lx")
-}
-
-model LearningProgress {
-  id           String         @id @default(uuid())
-
-  userId       String
-  courseId     String
-  lessonId     String
-
-  status       ProgressStatus @default(NOT_STARTED)
-
-  lastPosition Int            @default(0)
-
-  score        Decimal?       @db.Decimal(5, 2)
-
-  metadata     Json?          @default("{}")
-
-  completedAt  DateTime?
-
-  updatedAt    DateTime       @updatedAt
-
-  @@unique([userId, lessonId])
-  @@index([userId, courseId])
-  @@schema("lx")
-  @@map("lx_learning_progress")
-}
-
-model AIInteraction {
-  id              String   @id @default(uuid())
-
-  userId          String   @map("user_id")
-  lessonId        String   @map("lesson_id")
-  
-  interactionType String   @map("interaction_type") @db.VarChar(20)
-
-  prompt          String   @db.Text
-
-  response        String   @db.Text
-
-  contextSnapshot Json?    @map("context_snapshot") @default("{}")
-  
-  createdAt       DateTime @default(now()) @map("created_at")
-
-  @@index([userId, lessonId])
-  @@schema("lx")
-
-  @@map("lx_ai_interactions")
-}
-
-model LxLessonContext {
-  id           String   @id @default(uuid())
-  lessonId     String   @map("lesson_id")
-
-  chunkIndex   Int      @map("chunk_index")
-
-  contentChunk String   @map("content_chunk") @db.Text
-
-  metadata     Json?    @default("{}")
-
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  @@unique([lessonId, chunkIndex])
-
-  @@index([lessonId])
-  @@schema("lx")
-  @@map("lx_lesson_contexts")
-}
-
-// ==================== public schema ====================
-
-model Purchase {
-  id        String   @id @default(uuid())
-  userId    String
-  courseId  String
-
-  amount      Decimal  @db.Decimal(12,2)
-  status      String   @default("COMPLETED") 
-  purchasedAt DateTime @default(now())
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-
-  createdAt DateTime @default(now())
-
-  @@unique([userId, courseId])
-  @@index([userId])
-  @@index([courseId])
-  @@schema("lx")
-  @@map("purchases")
-}
-
-model Favorite {
-  id        String   @id @default(uuid())
-  userId    String
-  courseId  String
-  createdAt DateTime @default(now())
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, courseId])
-  @@index([userId])
-  @@schema("public")
-  @@map("favorites")
-}
-
-model Review {
-  id        String   @id @default(uuid())
-  userId    String
-  courseId  String
-  rating    Int
-  comment   String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([courseId])
-  @@schema("public")
-  @@map("reviews")
-}
-
-model Notification {
-  id          String   @id @default(uuid())
-  userId      String
-  title       String   @db.Text
-  description String   @db.Text
-  link        String?
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  @@index([userId])
-  @@index([createdAt])
-  @@schema("public")
-  @@map("notifications")
-}
-
-model Certificate {
-  id             String   @id @default(uuid())
-  userId         String
-  courseId       String
-  studentName    String   @db.VarChar(255)
-  courseTitle    String   @db.VarChar(255)
-  certificateUrl String   @db.Text
-  issuedAt       DateTime @default(now())
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, courseId])
-  @@index([userId])
-  @@schema("public")
-  @@map("certificates")
-}
-
-model Announcement {
-  id          String   @id @default(uuid())
-  courseId    String
-  teacherId   String
-  title       String   @db.VarChar(255)
-  content     String   @db.Text
-  createdAt   DateTime @default(now())
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@index([courseId])
-  @@schema("public")
-  @@map("announcements")
 }
 
 enum ExamType {
@@ -318,30 +43,6 @@ enum ExamType {
   @@schema("public")
 }
 
-model Exam {
-  id            String     @id @default(uuid())
-  teacherId     String
-  courseId      String 
-  title         String     @db.Text
-  topic         String?    @db.Text
-  type          ExamType   @default(MCQ)
-  duration      Int        @default(60)
-  isPublished   Boolean    @default(false)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-
-  questions   Question[]
-  results     ExamResult[]
-
-  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-
-  @@index([teacherId])
-  @@index([courseId])
-  @@schema("public")
-  @@map("exams")
-}
-
 enum ExamResultStatus {
   NOT_STARTED
   IN_PROGRESS
@@ -349,74 +50,10 @@ enum ExamResultStatus {
   @@schema("public")
 }
 
-model ExamResult {
-  id             String           @id @default(uuid())
-  examId         String
-  userId         String
-  score          Decimal?         @db.Decimal(5, 2)
-  totalQuestions Int
-  answers        Json             @default("{}")
-  status         ExamResultStatus @default(NOT_STARTED)
-  submittedAt    DateTime         @default(now())
-
-  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
-
-  @@unique([examId, userId])
-  @@index([userId])
-  @@schema("public")
-  @@map("exam_results")
-}
-
-model PaymentSetting {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  bankName      String?  @db.VarChar(100)
-  bankAccount   String?  @db.VarChar(50)
-  accountHolder String?  @db.VarChar(255)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@schema("public")
-  @@map("payment_settings")
-}
-
-model RevenueTransaction {
-  id          String   @id @default(uuid())
-  userId      String   
-  teacherId   String  
-  courseId    String
-  amount      Decimal  @db.Decimal(12,2)
-  type        String   
-  status      String   
-  createdAt   DateTime @default(now())
-
-  @@index([teacherId])
-  @@index([userId])
-  @@schema("public")
-  @@map("revenue_transactions")
-}
-
 enum QuestionType {
   MCQ
   ESSAY
   @@schema("public")
-}
-
-model Question {
-  id            String       @id @default(uuid())
-  examId        String
-  text          String       @db.Text
-  type          QuestionType @default(MCQ)
-  options       Json?                          
-  correctAnswer String?      @db.Text
-  explanation   String?      @db.Text
-  orderIndex    Int          @default(0)
-
-  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
-
-  @@index([examId])
-  @@schema("public")
-  @@map("questions")
 }
 
 enum TransactionType {
@@ -432,10 +69,393 @@ enum TransactionStatus {
   @@schema("public")
 }
 
+// ==================== course_mgmt SCHEMA ====================
+
+model Course {
+  id           String       @id @default(uuid()) @db.Uuid
+  instructorId String       @db.Uuid
+  title        String       @db.VarChar(255)
+  slug         String       @unique
+  description  String?      @db.Text
+  thumbnailUrl String?
+  price        Decimal      @default(0.0) @db.Decimal(12, 2)
+  status       CourseStatus @default(DRAFT)
+  outcomes     Json?
+  aiMetadata   Json?
+  language     String       @default("vi")   
+  level        String       @default("beginner") 
+  categoryId   String?      @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  sections          Section[]
+  reviewLogs        CourseReviewLog[]
+  purchases         Purchase[]
+  favorites         Favorite[]
+  reviews           Review[]
+  certificates      Certificate[]
+  announcements     Announcement[]
+  exams             Exam[]
+  questions         Question[]
+  learningOutcomes  LearningOutcome[] 
+
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([instructorId])
+  @@index([status])
+  @@schema("course_mgmt")
+  @@map("courses")
+}
+
+model Section {
+  id         String @id @default(uuid()) @db.Uuid
+  courseId   String @db.Uuid
+  title      String @db.VarChar(255)
+  orderIndex Int    @default(0)
+  metadata   Json?  @default("{}")
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+  mappings CurriculumMapping[]
+
+  @@index([courseId])
+  @@schema("course_mgmt")
+  @@map("sections")
+}
+
+model Lesson {
+  id            String     @id @default(uuid()) @db.Uuid
+  sectionId     String     @db.Uuid
+  courseId      String     @db.Uuid
+  title         String     @db.VarChar(255)
+  slug          String
+  type          LessonType @default(ARTICLE)
+  content       String?    @db.Text
+  duration      Int?       @default(0)
+  orderIndex    Int        @default(0)
+  isFreePreview Boolean    @default(false)
+  aiMetadata    Json       @default("[]")
+  mainTopics    Json?      @default("[]")  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+  @@index([courseId])
+  @@schema("course_mgmt")
+  @@map("lessons")
+}
+
+model LearningOutcome {
+  id          String   @id @default(uuid()) @db.Uuid
+  courseId    String   @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  orderIndex  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  curriculumMappings CurriculumMapping[]
+
+  @@index([courseId])
+  @@schema("course_mgmt")
+  @@map("learning_outcomes")
+}
+
+model CurriculumMapping {
+  id            String @id @default(uuid()) @db.Uuid
+  sectionId     String @db.Uuid
+  outcomeId     String @db.Uuid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  outcome LearningOutcome @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+
+  @@unique([sectionId, outcomeId])
+  @@index([sectionId])
+  @@schema("course_mgmt")
+  @@map("curriculum_mappings")
+}
+
+model CourseReviewLog {
+  id        String       @id @default(uuid()) @db.Uuid
+  courseId  String       @db.Uuid
+  adminId   String       @db.Uuid
+  action    CourseStatus
+  reason    String?      @db.Text
+  createdAt DateTime     @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@schema("course_mgmt")
+  @@map("course_review_logs")
+}
+
+// ==================== lx SCHEMA ====================
+
+model LearningProgress {
+  id           String         @id @default(uuid()) @db.Uuid
+  userId       String         @db.Uuid
+  courseId     String         @db.Uuid
+  lessonId     String         @db.Uuid
+  status       ProgressStatus @default(NOT_STARTED)
+  lastPosition Int            @default(0)
+  score        Decimal?       @db.Decimal(5, 2)
+  metadata     Json?          @default("{}")
+  completedAt  DateTime?
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([userId, courseId])
+  @@schema("lx")
+  @@map("lx_learning_progress")
+}
+
+model AIInteraction {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid @map("user_id")
+  lessonId        String   @db.Uuid @map("lesson_id")
+  interactionType String   @map("interaction_type") @db.VarChar(20)
+  prompt          String   @db.Text
+  response        String   @db.Text
+  contextSnapshot Json?    @map("context_snapshot") @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([userId, lessonId])
+  @@schema("lx")
+  @@map("lx_ai_interactions")
+}
+
+model LxLessonContext {
+  id           String   @id @default(uuid()) @db.Uuid
+  lessonId     String   @db.Uuid @map("lesson_id")
+  chunkIndex   Int      @map("chunk_index")
+  contentChunk String   @map("content_chunk") @db.Text
+  metadata     Json?    @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([lessonId, chunkIndex])
+  @@index([lessonId])
+  @@schema("lx")
+  @@map("lx_lesson_contexts")
+}
+
+// ==================== public SCHEMA ====================
+
+model Purchase {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  courseId      String   @db.Uuid
+  amount        Decimal  @db.Decimal(12,2)
+  status        String   @default("COMPLETED")
+  purchasedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  paymentMethod String?  @default("UNKNOWN")
+  paymentId     String?
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@schema("public")
+  @@map("purchases")
+}
+
+model Favorite {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  courseId  String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@schema("public")
+  @@map("favorites")
+}
+
+model Review {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  courseId  String   @db.Uuid
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([courseId])
+  @@schema("public")
+  @@map("reviews")
+}
+
+model Notification {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  title       String   @db.Text
+  description String   @db.Text
+  link        String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@schema("public")
+  @@map("notifications")
+}
+
+model Certificate {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  courseId       String   @db.Uuid
+  studentName    String   @db.VarChar(255)
+  studentEmail   String   @db.VarChar(255) 
+  courseTitle    String   @db.VarChar(255)
+  certificateUrl String   @db.Text
+  issuedAt       DateTime @default(now())
+  isValid        Boolean  @default(true)    
+  revokedAt      DateTime?                  
+  revokedBy      String?   @db.Uuid          
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@schema("public")
+  @@map("certificates")
+}
+
+model AnnouncementBroadcast {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(255)
+  content     String   @db.Text
+  type        String   @default("IN_APP")
+  audience    String   @default("ALL")    
+  targetUserIds Json?   
+  status      String   @default("SENT")   
+  createdBy   String   @db.Uuid          
+  sentAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@schema("public")
+  @@map("announcement_broadcasts")
+}
+
+model Announcement {
+  id          String   @id @default(uuid()) @db.Uuid
+  courseId    String   @db.Uuid
+  teacherId   String   @db.Uuid
+  title       String   @db.VarChar(255)
+  content     String   @db.Text
+  createdAt   DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@schema("public")
+  @@map("announcements")
+}
+
+model Exam {
+  id          String     @id @default(uuid()) @db.Uuid
+  teacherId   String     @db.Uuid
+  courseId    String     @db.Uuid
+  title       String     @db.Text
+  topic       String?    @db.Text
+  type        ExamType   @default(MCQ)
+  duration    Int        @default(60)
+  isPublished Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  questions   ExamQuestion[]
+  results     ExamResult[]
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@index([courseId])
+  @@schema("public")
+  @@map("exams")
+}
+
+model ExamQuestion {
+  id            String       @id @default(uuid()) @db.Uuid
+  examId        String       @db.Uuid
+  text          String       @db.Text
+  type          QuestionType @default(MCQ)
+  options       Json?
+  correctAnswer String?      @db.Text
+  explanation   String?      @db.Text
+  orderIndex    Int          @default(0)
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+  @@schema("public")
+  @@map("exam_questions")
+}
+
+model ExamResult {
+  id             String           @id @default(uuid()) @db.Uuid
+  examId         String           @db.Uuid
+  userId         String           @db.Uuid
+  score          Decimal?         @db.Decimal(5, 2)
+  totalQuestions Int
+  answers        Json             @default("{}")
+  status         ExamResultStatus @default(NOT_STARTED)
+  submittedAt    DateTime         @default(now())
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, userId])
+  @@index([userId])
+  @@schema("public")
+  @@map("exam_results")
+}
+
+model PaymentSetting {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid @unique
+  bankName      String?  @db.VarChar(100)
+  bankAccount   String?  @db.VarChar(50)
+  accountHolder String?  @db.VarChar(255)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@schema("public")
+  @@map("payment_settings")
+}
+
+model RevenueTransaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  teacherId String   @db.Uuid
+  courseId  String   @db.Uuid
+  amount    Decimal  @db.Decimal(12,2)
+  type      String
+  status    String
+  createdAt DateTime @default(now())
+
+  @@index([teacherId])
+  @@index([userId])
+  @@schema("public")
+  @@map("revenue_transactions")
+}
+
 model Transaction {
-  id        String            @id @default(uuid())
-  userId    String
-  courseId  String?
+  id        String            @id @default(uuid()) @db.Uuid
+  userId    String            @db.Uuid
+  courseId  String?           @db.Uuid
   amount    Decimal           @db.Decimal(12, 2)
   type      TransactionType   @default(PURCHASE)
   status    TransactionStatus @default(SUCCESS)
@@ -446,4 +466,53 @@ model Transaction {
   @@map("transactions")
 }
 
+// ====== NEW MODELS ======
 
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  courses     Course[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@schema("public")
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@schema("public")
+}
+
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  courseId  String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+  @@schema("public")
+}
+
+model Question {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  courseId    String   @db.Uuid
+  question    String   @db.Text
+  answer      String?  @db.Text
+  answeredAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([courseId])
+  @@schema("public")
+}

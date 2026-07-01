@@ -5,7 +5,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_FILTER } from '@nestjs/core';
-import { RedisModule } from '@nestjs-modules/ioredis'; // ← thêm
+import { RedisModule } from '@nestjs-modules/ioredis';
+import { PassportModule } from '@nestjs/passport';
 
 import { SharedModule } from './shared/shared.module';
 import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
@@ -25,18 +26,16 @@ import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { CertificateModule } from './modules/certificate/certificate.module';
 import { SupabaseStorageModule } from './modules/storage/supabase-storage.module';
 import { ReportModule } from './modules/report/report.module';
-import { PassportModule } from '@nestjs/passport';
+import { AdminModule } from './modules/admin/admin.module';
+import { LabModule } from './modules/lab/lab.module';
+import { AiModule } from './modules/ai/ai.module';
+import { CodeRunnerModule } from './modules/code-runner/code-runner.module';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env',
-    }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
     RedisModule.forRootAsync({
-      // ← thêm block này
       useFactory: (configService: ConfigService) => ({
         type: 'single',
         url: configService.getOrThrow('REDIS_URL'),
@@ -79,8 +78,11 @@ import { PassportModule } from '@nestjs/passport';
     AnnouncementModule,
     CertificateModule,
     SupabaseStorageModule,
+    AdminModule,
+    LabModule,
+    AiModule,
+    CodeRunnerModule,
   ],
-
   providers: [
     {
       provide: APP_FILTER,

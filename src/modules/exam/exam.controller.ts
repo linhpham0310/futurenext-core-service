@@ -68,7 +68,10 @@ export class StudentExamController {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.TEACHER)
 export class TeacherExamController {
-  constructor(private examService: ExamService) {}
+  constructor(
+    private examService: ExamService,
+    private prisma: PrismaService,
+  ) {}
 
   @Get()
   async getMyExams(@Request() req) {
@@ -127,5 +130,43 @@ export class TeacherExamController {
   @Get(':id/results')
   async getResults(@Param('id') id: string, @Request() req) {
     return this.examService.getExamResultsForTeacher(id, req.user.sub);
+  }
+
+  @Post(':id/from-bank')
+  async addQuestionsFromBank(
+    @Param('id') examId: string,
+    @Request() req,
+    @Body('questionIds') questionIds: string[], // mảng ID câu hỏi trong bank
+  ) {
+    // 1. Kiểm tra exam thuộc teacher
+    const exam = await this.prisma.exam.findUnique({
+      where: { id: examId, teacherId: req.user.sub },
+    });
+    if (!exam) throw new ForbiddenException();
+
+    // 2. Lấy câu hỏi từ bank (kiểm tra quyền sở hữu)
+    const bankItems = await this.prisma.questionBankItem.findMany({
+      where: {
+        id: { in: questionIds },
+        bank: { teacherId: req.user.sub },
+      },
+    });
+
+    // 3. Chuyển đổi thành ExamQuestion và thêm vào exam
+    const examQuestions = bankItems.map((item, index) => ({
+      examId,
+      text: item.questionText,
+      type: item.type,
+      options: item.options,
+      correctAnswer: item.correctAnswer,
+      explanation: item.explanation,
+      orderIndex: index + 1,
+    }));
+
+    await this.prisma.examQuestion.createMany({
+      data: examQuestions,
+    });
+
+    return { message: `Đã thêm ${examQuestions.length} câu hỏi vào đề thi` };
   }
 }
