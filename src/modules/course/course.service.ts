@@ -152,8 +152,16 @@ export class CourseService {
       include: {
         sections: {
           orderBy: { orderIndex: 'asc' },
-          include: { lessons: { orderBy: { orderIndex: 'asc' } } },
+          include: {
+            lessons: { orderBy: { orderIndex: 'asc' } },
+            mappings: {
+              include: { outcome: true }, // lấy thông tin outcome
+            },
+          },
         },
+        reviewLogs: { orderBy: { createdAt: 'desc' } },
+        learningOutcomes: { orderBy: { orderIndex: 'asc' } },
+        category: true,
       },
     });
     if (!course) throw new NotFoundException('Không tìm thấy khóa học');
@@ -161,12 +169,58 @@ export class CourseService {
       throw new ForbiddenException(
         'Bạn không có quyền xem nội dung khóa học này',
       );
-    return course;
+
+    // Lấy instructor
+    const instructor = await this.entityManager.findOne(User, {
+      where: { id: course.instructorId },
+      select: ['id', 'fullName', 'email'],
+    });
+
+    // Tính students và rating
+    const students = await this.prisma.purchase.count({
+      where: { courseId, status: 'COMPLETED' },
+    });
+    const reviews = await this.prisma.review.findMany({
+      where: { courseId },
+      select: { rating: true },
+    });
+    const avgRating =
+      reviews.length > 0
+        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        : 0;
+
+    // Chuyển đổi reviewLogs
+    const reviewLogs = course.reviewLogs.map((log) => ({
+      adminName: 'Admin', // có thể join với User để lấy tên admin
+      action: log.action,
+      reason: log.reason,
+      createdAt: log.createdAt,
+    }));
+
+    // Chuyển đổi sections để có loMappings
+    const sectionsWithMappings = course.sections.map((section) => ({
+      ...section,
+      loMappings: section.mappings.map((m) => ({
+        loId: m.outcome.id,
+        loTitle: m.outcome.title,
+      })),
+    }));
+
+    return {
+      ...course,
+      instructor,
+      students,
+      rating: avgRating,
+      reviewLogs,
+      sections: sectionsWithMappings,
+      // outcomes đã có qua learningOutcomes
+      outcomes: course.learningOutcomes,
+    };
   }
 
   async findOnePublished(courseId: string) {
     const course = await this.prisma.course.findFirst({
-      where: { id: courseId, status: CourseStatus.PUBLISHED },
+      where: { id: courseId, status: CourseStatus.APPROVED },
       include: {
         sections: {
           orderBy: { orderIndex: 'asc' },
@@ -183,7 +237,7 @@ export class CourseService {
     userId?: string,
   ) {
     const course = await this.prisma.course.findFirst({
-      where: { id: courseId, status: CourseStatus.PUBLISHED },
+      where: { id: courseId, status: CourseStatus.APPROVED },
       include: {
         sections: {
           orderBy: { orderIndex: 'asc' },
@@ -252,7 +306,7 @@ export class CourseService {
     const skip = (page - 1) * limit;
     const q = query.q || '';
 
-    const where: any = { status: 'PUBLISHED' };
+    const where: any = { status: 'APPROVED' };
     if (q) {
       where.OR = [
         { title: { contains: q, mode: 'insensitive' } },
@@ -284,11 +338,13 @@ export class CourseService {
     if (q) {
       where.OR = [{ title: { contains: q, mode: 'insensitive' } }];
     }
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.course.findMany({
         where,
         include: {
-          _count: { select: { sections: true, purchases: true } },
+          reviewLogs: true,
+          _count: { select: { purchases: true } },
         },
         skip,
         take: Number(limit),
@@ -296,12 +352,35 @@ export class CourseService {
       }),
       this.prisma.course.count({ where }),
     ]);
+
+    // Lấy instructor
+    const instructorIds = [...new Set(items.map((c) => c.instructorId))];
+    const instructorMap = await this.getInstructorMap(
+      instructorIds as string[],
+    );
+
+    // Lấy revenue cho từng course (aggregate từ Purchase)
+    const courseIds = items.map((c) => c.id);
+    const revenues = await this.prisma.purchase.groupBy({
+      by: ['courseId'],
+      where: { courseId: { in: courseIds }, status: 'COMPLETED' },
+      _sum: { amount: true },
+    });
+    const revenueMap = new Map(
+      revenues.map((r) => [r.courseId, r._sum.amount || 0]),
+    );
+
     const transformed = items.map((course) => ({
       ...course,
-      revenue: 0,
-      students: 0,
-      instructor: { fullName: 'Unknown' },
+      instructor: instructorMap.get(course.instructorId) || {
+        id: course.instructorId,
+        fullName: 'Unknown',
+        email: '',
+      },
+      students: course._count.purchases,
+      revenue: revenueMap.get(course.id) || 0,
     }));
+
     return {
       data: transformed,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
@@ -340,6 +419,17 @@ export class CourseService {
     });
   }
 
+  async approveCourse(courseId: string, adminId: string) {
+    return this.processReview(courseId, adminId, { action: 'APPROVED' });
+  }
+
+  async rejectCourse(courseId: string, adminId: string, reason: string) {
+    return this.processReview(courseId, adminId, {
+      action: 'REJECTED',
+      reason,
+    });
+  }
+
   async processReview(
     courseId: string,
     adminId: string,
@@ -370,8 +460,8 @@ export class CourseService {
       return updated;
     });
 
-    if (dto.action === CourseStatus.PUBLISHED) {
-      this.eventEmitter.emit('course.published', {
+    if (dto.action === CourseStatus.APPROVED) {
+      this.eventEmitter.emit('course.approved', {
         courseId: result.id,
         instructorId: result.instructorId,
         title: result.title,
@@ -614,7 +704,7 @@ export class CourseService {
   // ==================== ENROLLMENT & PROGRESS ====================
   async enrollCourse(userId: string, courseId: string) {
     const course = await this.prisma.course.findUnique({
-      where: { id: courseId, status: 'PUBLISHED' },
+      where: { id: courseId, status: 'APPROVED' },
     });
     if (!course)
       throw new NotFoundException(
@@ -855,6 +945,15 @@ export class CourseService {
     });
     if (!course) throw new NotFoundException('Course not found');
     return this.aiService.generateOutline(course.title, course.description);
+  }
+
+  private async getInstructorMap(userIds: string[]): Promise<Map<string, any>> {
+    if (!userIds.length) return new Map();
+    const users = await this.entityManager.find(User, {
+      where: { id: In(userIds) },
+      select: ['id', 'fullName', 'email'],
+    });
+    return new Map(users.map((u) => [u.id, u]));
   }
 
   // ==================== UTILITY ====================

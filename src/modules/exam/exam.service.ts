@@ -27,16 +27,24 @@ export class ExamService {
   }
 
   async createExam(teacherId: string, dto: CreateExamDto) {
-    // Gộp dữ liệu: teacherId và questions (lưu dưới dạng JSON)
-    const data: any = {
-      title: dto.title,
-      topic: dto.topic,
-      type: dto.type,
-      duration: dto.duration,
-      teacherId,
-      examQuestions: dto.questions,
-    };
-    return this.prisma.exam.create({ data });
+    const { questions, ...examData } = dto;
+    return this.prisma.exam.create({
+      data: {
+        ...examData,
+        teacherId,
+        examQuestions: {
+          create: questions.map((q, idx) => ({
+            text: q.text,
+            type: q.type,
+            options: q.options || [],
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            orderIndex: idx + 1,
+          })),
+        },
+      },
+      include: { examQuestions: true },
+    });
   }
 
   async getExamById(examId: string, teacherId?: string) {
@@ -52,11 +60,31 @@ export class ExamService {
 
   async updateExam(examId: string, teacherId: string, dto: UpdateExamDto) {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId } });
-    if (!exam) throw new NotFoundException();
-    if (exam.teacherId !== teacherId) throw new ForbiddenException();
-    return this.prisma.exam.update({
-      where: { id: examId },
-      data: dto,
+    if (!exam || exam.teacherId !== teacherId) throw new ForbiddenException();
+    const { questions = [], ...examData } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Nếu có questions trong DTO thì xóa cũ và tạo mới
+      if (dto.questions && dto.questions.length > 0) {
+        await tx.examQuestion.deleteMany({ where: { examId } });
+        await tx.examQuestion.createMany({
+          data: questions.map((q, idx) => ({
+            examId,
+            text: q.text,
+            type: q.type,
+            options: q.options || [],
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            orderIndex: idx + 1,
+          })),
+        });
+      }
+      // Cập nhật thông tin exam (không bao gồm questions)
+      return tx.exam.update({
+        where: { id: examId },
+        data: examData,
+        include: { examQuestions: true },
+      });
     });
   }
 

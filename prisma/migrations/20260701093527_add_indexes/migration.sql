@@ -5,7 +5,7 @@ CREATE SCHEMA IF NOT EXISTS "course_mgmt";
 CREATE SCHEMA IF NOT EXISTS "lx";
 
 -- CreateEnum
-CREATE TYPE "course_mgmt"."CourseStatus" AS ENUM ('DRAFT', 'SUBMITTED', 'PUBLISHED', 'REJECTED', 'ARCHIVED');
+CREATE TYPE "course_mgmt"."CourseStatus" AS ENUM ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'ARCHIVED');
 
 -- CreateEnum
 CREATE TYPE "course_mgmt"."LessonType" AS ENUM ('VIDEO', 'ARTICLE', 'QUIZ', 'LAB');
@@ -40,9 +40,11 @@ CREATE TABLE "course_mgmt"."courses" (
     "status" "course_mgmt"."CourseStatus" NOT NULL DEFAULT 'DRAFT',
     "outcomes" JSONB,
     "aiMetadata" JSONB,
+    "language" TEXT NOT NULL DEFAULT 'vi',
+    "level" TEXT NOT NULL DEFAULT 'beginner',
+    "categoryId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "categoryId" UUID,
 
     CONSTRAINT "courses_pkey" PRIMARY KEY ("id")
 );
@@ -71,6 +73,7 @@ CREATE TABLE "course_mgmt"."lessons" (
     "orderIndex" INTEGER NOT NULL DEFAULT 0,
     "isFreePreview" BOOLEAN NOT NULL DEFAULT false,
     "aiMetadata" JSONB NOT NULL DEFAULT '[]',
+    "mainTopics" JSONB DEFAULT '[]',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -78,11 +81,25 @@ CREATE TABLE "course_mgmt"."lessons" (
 );
 
 -- CreateTable
-CREATE TABLE "course_mgmt"."curriculum_mappings" (
+CREATE TABLE "course_mgmt"."learning_outcomes" (
     "id" UUID NOT NULL,
     "courseId" UUID NOT NULL,
-    "keyConcept" TEXT NOT NULL,
-    "taxonomyLevel" INTEGER NOT NULL DEFAULT 1,
+    "title" VARCHAR(255) NOT NULL,
+    "description" TEXT,
+    "orderIndex" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "learning_outcomes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "course_mgmt"."curriculum_mappings" (
+    "id" UUID NOT NULL,
+    "sectionId" UUID NOT NULL,
+    "outcomeId" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "curriculum_mappings_pkey" PRIMARY KEY ("id")
 );
@@ -198,11 +215,32 @@ CREATE TABLE "public"."certificates" (
     "userId" UUID NOT NULL,
     "courseId" UUID NOT NULL,
     "studentName" VARCHAR(255) NOT NULL,
+    "studentEmail" VARCHAR(255) NOT NULL,
     "courseTitle" VARCHAR(255) NOT NULL,
     "certificateUrl" TEXT NOT NULL,
     "issuedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "isValid" BOOLEAN NOT NULL DEFAULT true,
+    "revokedAt" TIMESTAMP(3),
+    "revokedBy" UUID,
 
     CONSTRAINT "certificates_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."announcement_broadcasts" (
+    "id" UUID NOT NULL,
+    "title" VARCHAR(255) NOT NULL,
+    "content" TEXT NOT NULL,
+    "type" TEXT NOT NULL DEFAULT 'IN_APP',
+    "audience" TEXT NOT NULL DEFAULT 'ALL',
+    "targetUserIds" JSONB,
+    "status" TEXT NOT NULL DEFAULT 'SENT',
+    "createdBy" UUID NOT NULL,
+    "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "announcement_broadcasts_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -366,7 +404,13 @@ CREATE INDEX "lessons_sectionId_idx" ON "course_mgmt"."lessons"("sectionId");
 CREATE INDEX "lessons_courseId_idx" ON "course_mgmt"."lessons"("courseId");
 
 -- CreateIndex
-CREATE INDEX "curriculum_mappings_courseId_idx" ON "course_mgmt"."curriculum_mappings"("courseId");
+CREATE INDEX "learning_outcomes_courseId_idx" ON "course_mgmt"."learning_outcomes"("courseId");
+
+-- CreateIndex
+CREATE INDEX "curriculum_mappings_sectionId_idx" ON "course_mgmt"."curriculum_mappings"("sectionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "curriculum_mappings_sectionId_outcomeId_key" ON "course_mgmt"."curriculum_mappings"("sectionId", "outcomeId");
 
 -- CreateIndex
 CREATE INDEX "lx_learning_progress_userId_courseId_idx" ON "lx"."lx_learning_progress"("userId", "courseId");
@@ -474,7 +518,13 @@ ALTER TABLE "course_mgmt"."sections" ADD CONSTRAINT "sections_courseId_fkey" FOR
 ALTER TABLE "course_mgmt"."lessons" ADD CONSTRAINT "lessons_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "course_mgmt"."sections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "course_mgmt"."curriculum_mappings" ADD CONSTRAINT "curriculum_mappings_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "course_mgmt"."learning_outcomes" ADD CONSTRAINT "learning_outcomes_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "course_mgmt"."curriculum_mappings" ADD CONSTRAINT "curriculum_mappings_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "course_mgmt"."sections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "course_mgmt"."curriculum_mappings" ADD CONSTRAINT "curriculum_mappings_outcomeId_fkey" FOREIGN KEY ("outcomeId") REFERENCES "course_mgmt"."learning_outcomes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "course_mgmt"."course_review_logs" ADD CONSTRAINT "course_review_logs_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;

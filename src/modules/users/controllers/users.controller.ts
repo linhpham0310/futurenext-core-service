@@ -91,54 +91,6 @@ export class UsersAdminController {
     return this.usersService.findAll(query);
   }
 
-  @Get(':id')
-  async getUserById(@Param('id') id: string) {
-    return this.usersService.findProfileById(id);
-  }
-
-  @Put(':id/role')
-  async updateUserRole(
-    @Param('id') targetUserId: string,
-    @Body() updateRoleDto: UpdateRoleDto,
-    @Req() req: any,
-    @Ip() ip: string,
-  ) {
-    const actionById = req.user.sub;
-    await this.usersService.updateRole(
-      targetUserId,
-      updateRoleDto.role,
-      actionById,
-      ip,
-    );
-    return { message: 'Cập nhật vai trò người dùng thành công.' };
-  }
-
-  @Patch(':id')
-  async updateUserPartial(
-    @Param('id') id: string,
-    @Body() dto: UpdateUserDto,
-    @Req() req,
-    @Ip() ip: string,
-  ) {
-    return this.usersService.updateUserPartial(id, dto, req.user.sub, ip);
-  }
-
-  @Put(':id')
-  async updateUserFull(
-    @Param('id') id: string,
-    @Body() dto: UpdateUserFullDto,
-    @Req() req,
-    @Ip() ip: string,
-  ) {
-    return this.usersService.updateUserFull(id, dto, req.user.sub, ip);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteUser(@Param('id') id: string, @Req() req, @Ip() ip: string) {
-    await this.usersService.deleteUser(id, req.user.sub, ip);
-  }
-
   // Student management
   @Get('students')
   async getStudents(@Query() query: UserQueryDto) {
@@ -186,24 +138,6 @@ export class UsersAdminController {
     await this.usersService.deleteUser(id, req.user.sub, ip);
   }
 
-  @Post(':id/reset-password')
-  @HttpCode(HttpStatus.OK)
-  async triggerResetPassword(
-    @Param('id') userId: string,
-    @Req() req: any,
-    @Ip() ip: string,
-  ) {
-    await this.usersService.triggerResetPassword(userId, req.user.sub, ip);
-    return {
-      message: 'Link reset mật khẩu đã được gửi đến email của người dùng.',
-    };
-  }
-
-  @Get(':id/audit-logs')
-  async getUserAuditLogs(@Param('id') userId: string) {
-    return this.usersService.getUserAuditLogs(userId);
-  }
-
   @Get(':id/check-last-admin')
   async checkLastAdmin(
     @Param('id') userId: string,
@@ -220,6 +154,72 @@ export class UsersAdminController {
     const activeAdmins = await this.usersService.countActiveAdmins();
     const isLastAdmin = activeAdmins <= 1;
     return { isLastAdmin };
+  }
+
+  @Get(':id/audit-logs')
+  async getUserAuditLogs(@Param('id') userId: string) {
+    return this.usersService.getUserAuditLogs(userId);
+  }
+
+  @Post(':id/reset-password')
+  @HttpCode(HttpStatus.OK)
+  async triggerResetPassword(
+    @Param('id') userId: string,
+    @Req() req: any,
+    @Ip() ip: string,
+  ) {
+    await this.usersService.triggerResetPassword(userId, req.user.sub, ip);
+    return {
+      message: 'Link reset mật khẩu đã được gửi đến email của người dùng.',
+    };
+  }
+
+  @Get(':id')
+  async getUserById(@Param('id') id: string) {
+    return this.usersService.findProfileById(id);
+  }
+
+  @Put(':id/role')
+  async updateUserRole(
+    @Param('id') targetUserId: string,
+    @Body() updateRoleDto: UpdateRoleDto,
+    @Req() req: any,
+    @Ip() ip: string,
+  ) {
+    const actionById = req.user.sub;
+    await this.usersService.updateRole(
+      targetUserId,
+      updateRoleDto.role,
+      actionById,
+      ip,
+    );
+    return { message: 'Cập nhật vai trò người dùng thành công.' };
+  }
+
+  @Patch(':id')
+  async updateUserPartial(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @Req() req,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.updateUserPartial(id, dto, req.user.sub, ip);
+  }
+
+  @Put(':id')
+  async updateUserFull(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserFullDto,
+    @Req() req,
+    @Ip() ip: string,
+  ) {
+    return this.usersService.updateUserFull(id, dto, req.user.sub, ip);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteUser(@Param('id') id: string, @Req() req, @Ip() ip: string) {
+    await this.usersService.deleteUser(id, req.user.sub, ip);
   }
 }
 

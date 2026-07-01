@@ -258,6 +258,134 @@ export class TeacherCourseController {
     return this.courseService.getAllStudentsByTeacher(req.user.sub);
   }
 
+  @Get('students/:studentId')
+  async getStudentDetail(
+    @Param('studentId') studentId: string,
+    @Request() req,
+  ) {
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        avatarUrl: true,
+        purchases: {
+          where: { course: { instructorId: req.user.sub } },
+          include: { course: true },
+        },
+      },
+    });
+    if (!student) throw new NotFoundException('Không tìm thấy học viên');
+    const courseProgress = await Promise.all(
+      student.purchases.map(async (p) => {
+        const totalLessons = await this.prisma.lesson.count({
+          where: { courseId: p.courseId },
+        });
+        const completed = await this.prisma.learningProgress.count({
+          where: {
+            userId: studentId,
+            courseId: p.courseId,
+            status: 'COMPLETED',
+          },
+        });
+        const lastActive = await this.prisma.learningProgress.findFirst({
+          where: { userId: studentId, courseId: p.courseId },
+          orderBy: { updatedAt: 'desc' },
+        });
+        return {
+          courseId: p.courseId,
+          courseTitle: p.course.title,
+          progress: totalLessons
+            ? Math.round((completed / totalLessons) * 100)
+            : 0,
+          lastActiveAt: lastActive?.updatedAt || null,
+        };
+      }),
+    );
+    return {
+      ...student,
+      enrolledAt: student.purchases[0]?.purchasedAt,
+      coursesEnrolled: student.purchases.length,
+      courseProgress,
+    };
+  }
+
+  // ===== ADVANCED REPORTS =====
+  @Get('reports/lessons/:courseId')
+  async getLessonProgressReport(
+    @Param('courseId') courseId: string,
+    @Request() req,
+  ) {
+    const course = await this.prisma.course.findFirst({
+      where: { id: courseId, instructorId: req.user.sub },
+    });
+    if (!course)
+      throw new ForbiddenException('Bạn không có quyền xem báo cáo này');
+    const lessons = await this.prisma.lesson.findMany({
+      where: { courseId },
+      include: {
+        progress: true,
+      },
+    });
+    const students = await this.prisma.purchase.findMany({
+      where: { courseId, status: 'COMPLETED' },
+      select: { userId: true },
+    });
+    const totalStudents = students.length;
+    return lessons.map((lesson) => {
+      const completed = lesson.progress.filter(
+        (p) => p.status === 'COMPLETED',
+      ).length;
+      const inProgress = lesson.progress.filter(
+        (p) => p.status === 'IN_PROGRESS',
+      ).length;
+      const notStarted = lesson.progress.filter(
+        (p) => p.status === 'NOT_STARTED',
+      ).length;
+      return {
+        lessonId: lesson.id,
+        lessonTitle: lesson.title,
+        totalStudents,
+        completed,
+        inProgress,
+        notStarted,
+        completionRate: totalStudents
+          ? Math.round((completed / totalStudents) * 100)
+          : 0,
+      };
+    });
+  }
+
+  @Get('reports/lessons/:courseId/export')
+  async exportLessonProgressReport(
+    @Param('courseId') courseId: string,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    const report = await this.getLessonProgressReport(courseId, req);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Progress Report');
+    worksheet.columns = [
+      { header: 'Bài học', key: 'lessonTitle', width: 30 },
+      { header: 'Tổng học viên', key: 'totalStudents', width: 15 },
+      { header: 'Hoàn thành', key: 'completed', width: 15 },
+      { header: 'Đang học', key: 'inProgress', width: 15 },
+      { header: 'Chưa bắt đầu', key: 'notStarted', width: 15 },
+      { header: 'Tỷ lệ hoàn thành', key: 'completionRate', width: 15 },
+    ];
+    report.forEach((row) => worksheet.addRow(row));
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=lesson_progress_${courseId}.xlsx`,
+    );
+    await workbook.xlsx.write(res);
+    res.end();
+  }
   @Get(':id')
   async getOne(@Param('id') id: string, @Request() req) {
     return this.courseService.getCourseDetailWithFullContent(id, req.user.sub);
@@ -494,59 +622,6 @@ export class TeacherCourseController {
     return { success: true, outline };
   }
 
-  @Get('students/:studentId')
-  async getStudentDetail(
-    @Param('studentId') studentId: string,
-    @Request() req,
-  ) {
-    const student = await this.prisma.user.findUnique({
-      where: { id: studentId },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        avatarUrl: true,
-        purchases: {
-          where: { course: { instructorId: req.user.sub } },
-          include: { course: true },
-        },
-      },
-    });
-    if (!student) throw new NotFoundException('Không tìm thấy học viên');
-    const courseProgress = await Promise.all(
-      student.purchases.map(async (p) => {
-        const totalLessons = await this.prisma.lesson.count({
-          where: { courseId: p.courseId },
-        });
-        const completed = await this.prisma.learningProgress.count({
-          where: {
-            userId: studentId,
-            courseId: p.courseId,
-            status: 'COMPLETED',
-          },
-        });
-        const lastActive = await this.prisma.learningProgress.findFirst({
-          where: { userId: studentId, courseId: p.courseId },
-          orderBy: { updatedAt: 'desc' },
-        });
-        return {
-          courseId: p.courseId,
-          courseTitle: p.course.title,
-          progress: totalLessons
-            ? Math.round((completed / totalLessons) * 100)
-            : 0,
-          lastActiveAt: lastActive?.updatedAt || null,
-        };
-      }),
-    );
-    return {
-      ...student,
-      enrolledAt: student.purchases[0]?.purchasedAt,
-      coursesEnrolled: student.purchases.length,
-      courseProgress,
-    };
-  }
-
   // ===== FEEDBACK =====
   @Get(':id/reviews')
   async getCourseReviews(@Param('id') courseId: string, @Request() req) {
@@ -640,82 +715,6 @@ export class TeacherCourseController {
     });
   }
 
-  // ===== ADVANCED REPORTS =====
-  @Get('reports/lessons/:courseId')
-  async getLessonProgressReport(
-    @Param('courseId') courseId: string,
-    @Request() req,
-  ) {
-    const course = await this.prisma.course.findFirst({
-      where: { id: courseId, instructorId: req.user.sub },
-    });
-    if (!course)
-      throw new ForbiddenException('Bạn không có quyền xem báo cáo này');
-    const lessons = await this.prisma.lesson.findMany({
-      where: { courseId },
-      include: {
-        progress: true,
-      },
-    });
-    const students = await this.prisma.purchase.findMany({
-      where: { courseId, status: 'COMPLETED' },
-      select: { userId: true },
-    });
-    const totalStudents = students.length;
-    return lessons.map((lesson) => {
-      const completed = lesson.progress.filter(
-        (p) => p.status === 'COMPLETED',
-      ).length;
-      const inProgress = lesson.progress.filter(
-        (p) => p.status === 'IN_PROGRESS',
-      ).length;
-      const notStarted = lesson.progress.filter(
-        (p) => p.status === 'NOT_STARTED',
-      ).length;
-      return {
-        lessonId: lesson.id,
-        lessonTitle: lesson.title,
-        totalStudents,
-        completed,
-        inProgress,
-        notStarted,
-        completionRate: totalStudents
-          ? Math.round((completed / totalStudents) * 100)
-          : 0,
-      };
-    });
-  }
-
-  @Get('reports/lessons/:courseId/export')
-  async exportLessonProgressReport(
-    @Param('courseId') courseId: string,
-    @Request() req,
-    @Res() res: Response,
-  ) {
-    const report = await this.getLessonProgressReport(courseId, req);
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Progress Report');
-    worksheet.columns = [
-      { header: 'Bài học', key: 'lessonTitle', width: 30 },
-      { header: 'Tổng học viên', key: 'totalStudents', width: 15 },
-      { header: 'Hoàn thành', key: 'completed', width: 15 },
-      { header: 'Đang học', key: 'inProgress', width: 15 },
-      { header: 'Chưa bắt đầu', key: 'notStarted', width: 15 },
-      { header: 'Tỷ lệ hoàn thành', key: 'completionRate', width: 15 },
-    ];
-    report.forEach((row) => worksheet.addRow(row));
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename=lesson_progress_${courseId}.xlsx`,
-    );
-    await workbook.xlsx.write(res);
-    res.end();
-  }
-
   @Put(':id/sections/:sectionId/mapping')
   async updateSectionMapping(
     @Param('id') courseId: string,
@@ -768,7 +767,7 @@ export class AdminCourseController {
   @Patch(':id/approve')
   async approveCourse(@Param('id') id: string, @Request() req) {
     return this.courseService.processReview(id, req.user.sub, {
-      action: 'PUBLISHED',
+      action: 'APPROVED',
     });
   }
 

@@ -15,7 +15,7 @@ datasource db {
 enum CourseStatus {
   DRAFT
   SUBMITTED
-  PUBLISHED
+  APPROVED
   REJECTED
   ARCHIVED
   @@schema("course_mgmt")
@@ -82,12 +82,14 @@ model Course {
   status       CourseStatus @default(DRAFT)
   outcomes     Json?
   aiMetadata   Json?
+  language     String       @default("vi")   
+  level        String       @default("beginner") 
+  categoryId   String?      @db.Uuid
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   sections          Section[]
   reviewLogs        CourseReviewLog[]
-  curriculumMapping CurriculumMapping[]
   purchases         Purchase[]
   favorites         Favorite[]
   reviews           Review[]
@@ -95,8 +97,8 @@ model Course {
   announcements     Announcement[]
   exams             Exam[]
   questions         Question[]
+  learningOutcomes  LearningOutcome[] 
 
-  categoryId String? @db.Uuid
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([instructorId])
@@ -114,6 +116,7 @@ model Section {
 
   course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lessons Lesson[]
+  mappings CurriculumMapping[]
 
   @@index([courseId])
   @@schema("course_mgmt")
@@ -132,6 +135,7 @@ model Lesson {
   orderIndex    Int        @default(0)
   isFreePreview Boolean    @default(false)
   aiMetadata    Json       @default("[]")
+  mainTopics    Json?      @default("[]")  
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -143,15 +147,36 @@ model Lesson {
   @@map("lessons")
 }
 
-model CurriculumMapping {
-  id            String @id @default(uuid()) @db.Uuid
-  courseId      String @db.Uuid
-  keyConcept    String
-  taxonomyLevel Int    @default(1)
+model LearningOutcome {
+  id          String   @id @default(uuid()) @db.Uuid
+  courseId    String   @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  orderIndex  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
+  curriculumMappings CurriculumMapping[]
+
   @@index([courseId])
+  @@schema("course_mgmt")
+  @@map("learning_outcomes")
+}
+
+model CurriculumMapping {
+  id            String @id @default(uuid()) @db.Uuid
+  sectionId     String @db.Uuid
+  outcomeId     String @db.Uuid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  outcome LearningOutcome @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+
+  @@unique([sectionId, outcomeId])
+  @@index([sectionId])
   @@schema("course_mgmt")
   @@map("curriculum_mappings")
 }
@@ -292,9 +317,13 @@ model Certificate {
   userId         String   @db.Uuid
   courseId       String   @db.Uuid
   studentName    String   @db.VarChar(255)
+  studentEmail   String   @db.VarChar(255) 
   courseTitle    String   @db.VarChar(255)
   certificateUrl String   @db.Text
   issuedAt       DateTime @default(now())
+  isValid        Boolean  @default(true)    
+  revokedAt      DateTime?                  
+  revokedBy      String?   @db.Uuid          
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
@@ -302,6 +331,23 @@ model Certificate {
   @@index([userId])
   @@schema("public")
   @@map("certificates")
+}
+
+model AnnouncementBroadcast {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(255)
+  content     String   @db.Text
+  type        String   @default("IN_APP")
+  audience    String   @default("ALL")    
+  targetUserIds Json?   
+  status      String   @default("SENT")   
+  createdBy   String   @db.Uuid          
+  sentAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@schema("public")
+  @@map("announcement_broadcasts")
 }
 
 model Announcement {
