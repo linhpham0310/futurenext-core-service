@@ -14,6 +14,7 @@ import {
 } from './controllers/course.controller';
 import { User } from '../users/entities/user.entity';
 import { AiModule } from '../ai/ai.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AiModule } from '../ai/ai.module';
     PrismaModule,
     SupabaseStorageModule,
     AiModule,
+    UsersModule,
   ],
   controllers: [
     CourseController,

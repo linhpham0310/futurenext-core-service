@@ -10,9 +10,12 @@ import { AdminCertificateController } from './admin-certificate.controller';
 import { AdminSettingsService } from './admin-settings.service';
 import { AdminOrderService } from './admin-order.service';
 import { AdminCategoryService } from './admin-category.service';
+import { SupabaseStorageModule } from '../storage/supabase-storage.module';
+import { StorageService } from '../storage/storage.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, SupabaseStorageModule],
   controllers: [
     AdminNotificationController,
     AdminSettingsController,
@@ -26,6 +29,10 @@ import { AdminCategoryService } from './admin-category.service';
     AdminSettingsService,
     AdminOrderService,
     AdminCategoryService,
+    {
+      provide: StorageService,
+      useClass: SupabaseStorageService,
+    },
   ],
 })
 export class AdminModule {}

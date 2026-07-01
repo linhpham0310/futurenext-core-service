@@ -5,9 +5,10 @@ import {
   TeacherExamController,
 } from './exam.controller';
 import { ExamService } from './exam.service';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AiModule],
   controllers: [StudentExamController, TeacherExamController],
   providers: [ExamService],
 })

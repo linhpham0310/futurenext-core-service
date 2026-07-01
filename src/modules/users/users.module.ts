@@ -18,6 +18,9 @@ import {
   AdminTeacherProfilesController,
   StudentController,
 } from './controllers/users.controller';
+import { SecurityAuditLog } from '@/shared/providers/audit/audit.entity';
+import { CodeRunnerModule } from '../code-runner/code-runner.module';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
   imports: [
@@ -26,9 +29,12 @@ import {
       UserCredential,
       UserConsent,
       TeacherProfile,
+      SecurityAuditLog,
     ]),
     PrismaModule,
     forwardRef(() => AuthModule),
+    CodeRunnerModule,
+    AiModule,
   ],
   controllers: [
     UsersController,

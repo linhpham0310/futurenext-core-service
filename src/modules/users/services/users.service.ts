@@ -4,6 +4,8 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
@@ -29,6 +31,7 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     private readonly auditService: AuditService,
     private prisma: PrismaService,
+    @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
     @InjectRepository(SecurityAuditLog)
     private auditLogRepository: Repository<SecurityAuditLog>,
