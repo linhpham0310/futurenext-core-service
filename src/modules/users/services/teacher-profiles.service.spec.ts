@@ -247,14 +247,12 @@ describe('TeacherProfilesService', () => {
       };
       mockTeacherProfileRepo.findOne.mockResolvedValue(mockProfile);
 
-      // Giả lập DB văng lỗi khi đang save
       mockQueryRunner.manager.save.mockRejectedValueOnce(new Error('DB Error'));
 
       await expect(
         service.reviewProfile(adminId, profileId, reviewDto),
       ).rejects.toThrow('DB Error');
 
-      // Đảm bảo Rollback được gọi
       expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
       expect(mockQueryRunner.release).toHaveBeenCalled();
     });
