@@ -1,7 +1,6 @@
-// src/modules/users/services/users.service.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { EntityManager } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import {
   ConflictException,
   NotFoundException,
@@ -11,13 +10,17 @@ import { UsersService } from './users.service';
 import { AuditService } from '@/shared/providers/audit/audit.service';
 import { User, UserRole, UserStatus } from '../entities/user.entity';
 import { PrismaService } from '../../../../prisma/prisma.service';
+import { AuthService } from '../../auth/services/auth.service';
+import { SecurityAuditLog } from '@/shared/providers/audit/audit.entity';
 
 describe('UsersService', () => {
   let service: UsersService;
 
+  // Mock EntityManager (có thêm find)
   const mockEntityManager = {
     findOne: jest.fn(),
     update: jest.fn(),
+    find: jest.fn(), // <-- thêm find
     createQueryBuilder: jest.fn(() => ({
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
@@ -36,6 +39,7 @@ describe('UsersService', () => {
     save: jest.fn(),
     count: jest.fn(),
     create: jest.fn(),
+    softDelete: jest.fn(),
   };
 
   const mockAuditService = {
@@ -44,6 +48,16 @@ describe('UsersService', () => {
 
   const mockPrismaService = {
     purchase: { count: jest.fn() },
+  };
+
+  // Mock AuthService
+  const mockAuthService = {
+    handleForgotPassword: jest.fn().mockResolvedValue(undefined),
+  };
+
+  // Mock SecurityAuditLog repository
+  const mockAuditLogRepository = {
+    find: jest.fn().mockResolvedValue([]),
   };
 
   beforeEach(async () => {
@@ -56,6 +70,11 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(User), useValue: mockUserRepository },
         { provide: AuditService, useValue: mockAuditService },
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: AuthService, useValue: mockAuthService }, // <-- thêm
+        {
+          provide: getRepositoryToken(SecurityAuditLog),
+          useValue: mockAuditLogRepository,
+        }, // <-- thêm
       ],
     }).compile();
 
@@ -71,14 +90,14 @@ describe('UsersService', () => {
         fullName: 'Test User',
         email: 'test@example.com',
       };
-      mockUserRepository.findOne.mockResolvedValue(user); // ← dùng mockUserRepository
+      mockUserRepository.findOne.mockResolvedValue(user);
 
       const result = await service.findProfileById(userId);
       expect(result).toEqual(user);
     });
 
     it('should throw NotFoundException if user does not exist', async () => {
-      mockUserRepository.findOne.mockResolvedValue(null); // ← dùng mockUserRepository
+      mockUserRepository.findOne.mockResolvedValue(null);
 
       await expect(service.findProfileById('non-existent')).rejects.toThrow(
         NotFoundException,
@@ -99,8 +118,8 @@ describe('UsersService', () => {
       const updatedUser = { id: userId, fullName: 'Updated Name' };
 
       mockUserRepository.findOne
-        .mockResolvedValueOnce(existingUser) // lần 1: tìm để update
-        .mockResolvedValueOnce(updatedUser); // lần 2: findProfileById sau save
+        .mockResolvedValueOnce(existingUser)
+        .mockResolvedValueOnce(updatedUser);
 
       const result = await service.updateProfile(userId, {
         fullName: 'Updated Name',
@@ -118,9 +137,9 @@ describe('UsersService', () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
-  // --- [Task: S2-BE-08] TEST CHO UPDATE ROLE & ADMIN CHECK ---
+
   describe('updateRole', () => {
-    it('nên ném NotFoundException nếu user không tồn tại', async () => {
+    it('should throw NotFoundException if user does not exist', async () => {
       mockUserRepository.findOne.mockResolvedValue(null);
 
       await expect(
@@ -133,7 +152,7 @@ describe('UsersService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('nên kết thúc sớm nếu role mới giống role cũ (Không gọi DB save)', async () => {
+    it('should early return if role is same', async () => {
       mockUserRepository.findOne.mockResolvedValue({
         id: 'u1',
         role: UserRole.TEACHER,
@@ -145,14 +164,12 @@ describe('UsersService', () => {
       expect(mockAuditService.log).not.toHaveBeenCalled();
     });
 
-    it('nên ném BadRequestException nếu cố hạ quyền Admin cuối cùng', async () => {
-      // Giả lập user mục tiêu đang là Admin
+    it('should throw BadRequestException if trying to demote last admin', async () => {
       mockUserRepository.findOne.mockResolvedValue({
         id: 'admin1',
         role: UserRole.ADMIN,
         status: UserStatus.ACTIVE,
       });
-      // Giả lập DB chỉ còn 1 Admin đang active
       mockUserRepository.count.mockResolvedValue(1);
 
       await expect(
@@ -163,8 +180,7 @@ describe('UsersService', () => {
       expect(mockUserRepository.save).not.toHaveBeenCalled();
     });
 
-    it('nên cập nhật role thành công và ghi log audit', async () => {
-      // Giả lập user mục tiêu đang là Teacher
+    it('should update role successfully and log audit', async () => {
       const targetUser = {
         id: 'u1',
         role: UserRole.TEACHER,
@@ -174,7 +190,7 @@ describe('UsersService', () => {
 
       await service.updateRole('u1', UserRole.ADMIN, 'admin_id', '127.0.0.1');
 
-      expect(targetUser.role).toBe(UserRole.ADMIN); // Đảm bảo object đã được đổi state
+      expect(targetUser.role).toBe(UserRole.ADMIN);
       expect(mockUserRepository.save).toHaveBeenCalledWith(targetUser);
       expect(mockAuditService.log).toHaveBeenCalledWith(
         expect.objectContaining({
