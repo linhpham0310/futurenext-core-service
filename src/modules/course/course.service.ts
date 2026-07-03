@@ -244,7 +244,6 @@ export class CourseService {
           include: { lessons: { orderBy: { orderIndex: 'asc' } } },
         },
         reviews: {
-          include: { user: { select: { fullName: true } } },
           orderBy: { createdAt: 'desc' },
         },
         _count: { select: { purchases: true } },
@@ -279,8 +278,35 @@ export class CourseService {
     // Lấy câu hỏi (nếu có)
     const questions = await this.prisma.question.findMany({
       where: { courseId, answer: { not: null } },
-      include: { user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
+    });
+
+    // Join user info cho reviews + questions qua TypeORM (User không nằm trong Prisma schema)
+    const reviewUserIds = course.reviews.map((r) => r.userId);
+    const questionUserIds = questions.map((q) => q.userId);
+    const allUserIds = [...new Set([...reviewUserIds, ...questionUserIds])];
+    const users = allUserIds.length
+      ? await this.entityManager.find(User, {
+          where: { id: In(allUserIds) },
+          select: ['id', 'fullName'],
+        })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const reviewsWithUser = course.reviews.map((r) => {
+      const user = userMap.get(r.userId);
+      return {
+        ...r,
+        user: { fullName: user?.fullName ?? 'Unknown' },
+      };
+    });
+
+    const questionsWithUser = questions.map((q) => {
+      const user = userMap.get(q.userId);
+      return {
+        ...q,
+        user: { fullName: user?.fullName ?? 'Unknown' },
+      };
     });
 
     return {
@@ -295,8 +321,8 @@ export class CourseService {
       outcomes: (course.outcomes as string[]) || [],
       isEnrolled,
       progress,
-      reviews: course.reviews,
-      questions,
+      reviews: reviewsWithUser,
+      questions: questionsWithUser,
     };
   }
 
@@ -557,7 +583,6 @@ export class CourseService {
 
   // ==================== LESSON MANAGEMENT ====================
   async addLesson(sectionId: string, dto: CreateLessonDto, teacherId: string) {
-    // Lấy section kèm course để biết courseId
     const section = await this.prisma.section.findUnique({
       where: { id: sectionId },
       include: { course: true },
@@ -584,13 +609,9 @@ export class CourseService {
         isFreePreview: dto.isFreePreview || false,
         orderIndex: newOrderIndex,
         slug: slugify(dto.title, { lower: true, strict: true }),
-        //  Quan hệ với section
+        courseId: section.courseId,
         section: {
           connect: { id: sectionId },
-        },
-        //  Quan hệ với course (bắt buộc theo schema)
-        course: {
-          connect: { id: section.courseId },
         },
       },
     });
@@ -878,11 +899,17 @@ export class CourseService {
 
     const enrollments = await this.prisma.purchase.findMany({
       where: { courseId, status: 'COMPLETED' },
-      include: {
-        user: { select: { id: true, fullName: true, email: true } },
-      },
       orderBy: { purchasedAt: 'desc' },
     });
+
+    const userIds = [...new Set(enrollments.map((e) => e.userId))];
+    const users = userIds.length
+      ? await this.entityManager.find(User, {
+          where: { id: In(userIds) },
+          select: ['id', 'fullName', 'email'],
+        })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
 
     // Tính tiến độ cho từng học viên
     const totalLessons = await this.prisma.lesson.count({
@@ -890,6 +917,7 @@ export class CourseService {
     });
     const result = await Promise.all(
       enrollments.map(async (e) => {
+        const user = userMap.get(e.userId);
         const completed = await this.prisma.learningProgress.count({
           where: { userId: e.userId, courseId, status: 'COMPLETED' },
         });
@@ -900,9 +928,9 @@ export class CourseService {
           orderBy: { updatedAt: 'desc' },
         });
         return {
-          id: e.user.id,
-          fullName: e.user.fullName,
-          email: e.user.email,
+          id: user?.id ?? e.userId,
+          fullName: user?.fullName ?? 'Unknown',
+          email: user?.email ?? '',
           progress,
           joinedAt: e.purchasedAt,
           lastActiveAt: lastActive?.updatedAt || null,

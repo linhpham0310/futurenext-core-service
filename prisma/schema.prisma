@@ -77,6 +77,7 @@ model Course {
   title        String       @db.VarChar(255)
   slug         String       @unique
   description  String?      @db.Text
+  shortDescription  String?  @db.VarChar(500)
   thumbnailUrl String?
   price        Decimal      @default(0.0) @db.Decimal(12, 2)
   status       CourseStatus @default(DRAFT)

@@ -35,6 +35,7 @@ CREATE TABLE "course_mgmt"."courses" (
     "title" VARCHAR(255) NOT NULL,
     "slug" TEXT NOT NULL,
     "description" TEXT,
+    "shortDescription" VARCHAR(500),
     "thumbnailUrl" TEXT,
     "price" DECIMAL(12,2) NOT NULL DEFAULT 0.0,
     "status" "course_mgmt"."CourseStatus" NOT NULL DEFAULT 'DRAFT',

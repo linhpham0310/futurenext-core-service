@@ -2,7 +2,10 @@
 import { TDocumentDefinitions } from 'pdfmake/interfaces';
 import { StorageService } from '../storage/storage.service';
 import { PrismaService } from 'prisma/prisma.service';
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In } from 'typeorm';
+import { User } from '../users/entities/user.entity';
 import PDFDocument from 'pdfkit';
 
 @Injectable()
@@ -10,15 +13,29 @@ export class CertificateService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    @InjectRepository(User) private userRepo: Repository<User>,
   ) {}
 
   async getAllCertificates() {
-    return this.prisma.certificate.findMany({
+    const certificates = await this.prisma.certificate.findMany({
       include: {
         course: { select: { title: true } },
-        user: { select: { fullName: true, email: true } },
       },
       orderBy: { issuedAt: 'desc' },
+    });
+
+    const userIds = [...new Set(certificates.map((c) => c.userId))];
+    const users = userIds.length
+      ? await this.userRepo.find({ where: { id: In(userIds) } })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    return certificates.map((cert) => {
+      const user = userMap.get(cert.userId);
+      return {
+        ...cert,
+        user: user ? { fullName: user.fullName, email: user.email } : null,
+      };
     });
   }
 
@@ -32,17 +49,26 @@ export class CertificateService {
       where: { course: { instructorId: teacherId } },
       include: {
         course: { select: { title: true } },
-        user: { select: { fullName: true, email: true } },
       },
       orderBy: { issuedAt: 'desc' },
     });
-    return certificates.map((cert) => ({
-      id: cert.id,
-      studentName: cert.user.fullName,
-      courseTitle: cert.course.title,
-      issuedAt: cert.issuedAt,
-      certificateUrl: cert.certificateUrl,
-    }));
+
+    const userIds = [...new Set(certificates.map((c) => c.userId))];
+    const users = userIds.length
+      ? await this.userRepo.find({ where: { id: In(userIds) } })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    return certificates.map((cert) => {
+      const user = userMap.get(cert.userId);
+      return {
+        id: cert.id,
+        studentName: user?.fullName ?? cert.studentName,
+        courseTitle: cert.course.title,
+        issuedAt: cert.issuedAt,
+        certificateUrl: cert.certificateUrl,
+      };
+    });
   }
 
   async issueCertificate(
@@ -52,12 +78,17 @@ export class CertificateService {
   ) {
     // ... kiểm tra quyền và hoàn thành khóa học ...
 
-    const student = await this.prisma.user.findUnique({
-      where: { id: studentId },
-    });
+    const student = await this.userRepo.findOne({ where: { id: studentId } });
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
     });
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
 
     // Tạo PDF
     const pdfBuffer = await this.generateCertificatePDF(
@@ -79,6 +110,7 @@ export class CertificateService {
         userId: studentId,
         courseId,
         studentName: student.fullName,
+        studentEmail: student.email,
         courseTitle: course.title,
         certificateUrl,
         issuedAt: new Date(),
@@ -100,14 +132,11 @@ export class CertificateService {
         resolve(pdfData);
       });
 
-      // Background
       doc.rect(0, 0, doc.page.width, doc.page.height).fill('#f0f4ff');
-      // Border
       doc
         .rect(20, 20, doc.page.width - 40, doc.page.height - 40)
         .stroke('#2563eb');
 
-      // Title
       doc
         .fontSize(36)
         .fillColor('#1e293b')
@@ -135,7 +164,6 @@ export class CertificateService {
           align: 'center',
         });
 
-      // Footer
       doc
         .fontSize(10)
         .fillColor('#94a3b8')

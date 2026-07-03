@@ -1,5 +1,13 @@
 // src/modules/dashboard/dashboard.controller.ts
-import { Controller, Get, UseGuards, Request, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  UseGuards,
+  Request,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '@/shared/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/guards/roles.guard';
 import { Roles } from '../../shared/decorators/roles.decorator';
@@ -20,7 +28,9 @@ export class DashboardController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get('admin/activities/recent')
-  async getRecentActivities(@Query('limit') limit = 10) {
+  async getRecentActivities(
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+  ) {
     return this.dashboardService.getRecentActivities(limit);
   }
 
@@ -43,7 +53,10 @@ export class DashboardController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STUDENT)
   @Get('student/recent-courses')
-  async getStudentRecentCourses(@Request() req, @Query('limit') limit = 3) {
+  async getStudentRecentCourses(
+    @Request() req,
+    @Query('limit', new DefaultValuePipe(3), ParseIntPipe) limit: number,
+  ) {
     const userId = req.user.sub;
     return this.dashboardService.getStudentRecentCourses(userId, limit);
   }

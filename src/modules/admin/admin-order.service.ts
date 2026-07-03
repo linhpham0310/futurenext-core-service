@@ -1,40 +1,55 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In } from 'typeorm';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class AdminOrderService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @InjectRepository(User) private userRepo: Repository<User>,
+  ) {}
 
   async getOrders(query: any) {
-    const { page = 1, limit = 10, status } = query;
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
     const where: any = {};
-    if (status) where.status = status;
+    if (query.status) where.status = query.status;
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.purchase.findMany({
         where,
         include: {
-          user: { select: { fullName: true, email: true } },
           course: { select: { title: true } },
         },
         skip,
-        take: Number(limit),
+        take: limit,
         orderBy: { purchasedAt: 'desc' },
       }),
       this.prisma.purchase.count({ where }),
     ]);
 
+    const userIds = [...new Set(items.map((p) => p.userId))];
+    const users = userIds.length
+      ? await this.userRepo.find({ where: { id: In(userIds) } })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
     return {
-      items: items.map((p) => ({
-        id: p.id,
-        user: p.user,
-        course: p.course,
-        amount: p.amount,
-        status: p.status,
-        paymentMethod: 'UNKNOWN', // có thể map từ metadata nếu có
-        createdAt: p.purchasedAt,
-      })),
+      items: items.map((p) => {
+        const user = userMap.get(p.userId);
+        return {
+          id: p.id,
+          user: user ? { fullName: user.fullName, email: user.email } : null,
+          course: p.course,
+          amount: p.amount,
+          status: p.status,
+          paymentMethod: p.paymentMethod ?? 'UNKNOWN',
+          createdAt: p.purchasedAt,
+        };
+      }),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -42,12 +57,15 @@ export class AdminOrderService {
   async getOrderById(id: string) {
     const order = await this.prisma.purchase.findUnique({
       where: { id },
-      include: {
-        user: true,
-        course: true,
-      },
+      include: { course: true },
     });
     if (!order) throw new Error('Order not found');
-    return order;
+
+    const user = await this.userRepo.findOne({ where: { id: order.userId } });
+
+    return {
+      ...order,
+      user: user ? { fullName: user.fullName, email: user.email } : null,
+    };
   }
 }
