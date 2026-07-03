@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from 'prisma/prisma.module';
 import { NotificationService } from '../notifications/notification.service';
-import { CertificateService } from '../certificate/certificate.service';
 import { AdminNotificationController } from './admin-notification.controller';
 import { AdminSettingsController } from './admin-settings.controller';
 import { AdminOrderController } from './admin-order.controller';
@@ -14,9 +13,16 @@ import { SupabaseStorageModule } from '../storage/supabase-storage.module';
 import { StorageService } from '../storage/storage.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { CertificateModule } from '../certificate/certificate.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from '../users/entities/user.entity';
 
 @Module({
-  imports: [PrismaModule, SupabaseStorageModule, CertificateModule],
+  imports: [
+    PrismaModule,
+    SupabaseStorageModule,
+    CertificateModule,
+    TypeOrmModule.forFeature([User]),
+  ],
   controllers: [
     AdminNotificationController,
     AdminSettingsController,
@@ -26,7 +32,6 @@ import { CertificateModule } from '../certificate/certificate.module';
   ],
   providers: [
     NotificationService,
-    CertificateService,
     AdminSettingsService,
     AdminOrderService,
     AdminCategoryService,
