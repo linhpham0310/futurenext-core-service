@@ -496,7 +496,7 @@ export class StudentController {
       },
     });
     // TODO: Gọi service thanh toán để tạo payment URL
-    let paymentUrl = null;
+    const paymentUrl = null;
     return { orderId: purchase.id, paymentUrl };
   }
 
@@ -694,8 +694,9 @@ export class StudentController {
       testCases = payload.testCases || [];
       initialCode = payload.initialCode || '';
       language = payload.language || 'javascript';
-    } catch {}
-
+    } catch (error) {
+      console.error('Lỗi khi phân tích nội dung bài học:', error);
+    }
     return {
       id: lesson.id,
       title: lesson.title,
@@ -725,8 +726,9 @@ export class StudentController {
       const payload = JSON.parse(lesson.content || '{}');
       testCases = payload.testCases || [];
       language = payload.language || 'javascript';
-    } catch {}
-
+    } catch (error) {
+      console.error('Lỗi khi phân tích nội dung bài học:', error);
+    }
     const result = await this.codeRunnerService.runCode({
       code,
       language,
