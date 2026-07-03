@@ -13,9 +13,10 @@ import { AdminCategoryService } from './admin-category.service';
 import { SupabaseStorageModule } from '../storage/supabase-storage.module';
 import { StorageService } from '../storage/storage.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { CertificateModule } from '../certificate/certificate.module';
 
 @Module({
-  imports: [PrismaModule, SupabaseStorageModule],
+  imports: [PrismaModule, SupabaseStorageModule, CertificateModule],
   controllers: [
     AdminNotificationController,
     AdminSettingsController,

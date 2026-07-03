@@ -23,5 +23,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
       useClass: SupabaseStorageService,
     },
   ],
+  exports: [CertificateService],
 })
 export class CertificateModule {}
