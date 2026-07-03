@@ -58,20 +58,9 @@ export class CourseController {
     return this.courseService.findAllPublished(query);
   }
 
-  @Get('public/:id')
-  async getPublicCourseDetail(@Param('id') id: string, @Request() req) {
-    const userId = req.user?.sub;
-    return this.courseService.findOnePublishedWithEnrollmentStatus(id, userId);
-  }
-
   @Get()
   async findAllPublished(@Query() query: any) {
     return this.courseService.findAllPublished(query);
-  }
-
-  @Get(':id')
-  async findOnePublished(@Param('id') id: string) {
-    return this.courseService.findOnePublished(id);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -93,6 +82,18 @@ export class CourseController {
     return this.courseService.getEnrolledCourses(req.user.sub);
   }
 
+  @Get('public/:id')
+  async getPublicCourseDetail(@Param('id') id: string, @Request() req) {
+    const userId = req.user?.sub;
+    return this.courseService.findOnePublishedWithEnrollmentStatus(id, userId);
+  }
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Get(':id/builder')
+  async getCourseBuilder(@Param('id') id: string) {
+    return this.courseService.getCourseDetailWithFullContent(id);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STUDENT)
   @Post(':id/enroll')
@@ -101,15 +102,13 @@ export class CourseController {
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
-  @Patch(':id')
-  async updateCourse(@Param('id') id: string, @Body() updateData: any) {
-    return this.courseService.updateCourse(id, updateData, '');
-  }
-
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
-  @Get(':id/builder')
-  async getCourseBuilder(@Param('id') id: string) {
-    return this.courseService.getCourseDetailWithFullContent(id);
+  @Get(':id/upload-url')
+  async getUploadUrl(
+    @Param('id') courseId: string,
+    @Query('fileName') fileName: string,
+    @Query('fileType') fileType: string,
+  ) {
+    return this.courseService.getUploadSignedUrl(courseId, fileName, fileType);
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
@@ -150,16 +149,6 @@ export class CourseController {
     @Request() req,
   ) {
     return this.courseService.addLesson(sectionId, dto, req.user.sub);
-  }
-
-  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
-  @Get(':id/upload-url')
-  async getUploadUrl(
-    @Param('id') courseId: string,
-    @Query('fileName') fileName: string,
-    @Query('fileType') fileType: string,
-  ) {
-    return this.courseService.getUploadSignedUrl(courseId, fileName, fileType);
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
@@ -225,6 +214,17 @@ export class CourseController {
       include: { user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  @Get(':id')
+  async findOnePublished(@Param('id') id: string) {
+    return this.courseService.findOnePublished(id);
+  }
+
+  @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
+  @Patch(':id')
+  async updateCourse(@Param('id') id: string, @Body() updateData: any) {
+    return this.courseService.updateCourse(id, updateData, '');
   }
 }
 
@@ -311,7 +311,6 @@ export class TeacherCourseController {
     };
   }
 
-  // ===== ADVANCED REPORTS =====
   @Get('reports/lessons/:courseId')
   async getLessonProgressReport(
     @Param('courseId') courseId: string,
@@ -386,98 +385,19 @@ export class TeacherCourseController {
     await workbook.xlsx.write(res);
     res.end();
   }
-  @Get(':id')
-  async getOne(@Param('id') id: string, @Request() req) {
-    return this.courseService.getCourseDetailWithFullContent(id, req.user.sub);
-  }
-
-  @Put(':id')
-  async update(
-    @Param('id') id: string,
-    @Request() req,
-    @Body() dto: UpdateCourseDto,
-  ) {
-    return this.courseService.updateCourse(id, dto, req.user.sub);
-  }
-
-  @Delete(':id')
-  async delete(@Param('id') id: string, @Request() req) {
-    return this.courseService.deleteCourse(id, req.user.sub);
-  }
 
   @Get(':id/builder')
   async getBuilder(@Param('id') id: string, @Request() req) {
     return this.courseService.getCourseDetailWithFullContent(id, req.user.sub);
   }
 
-  @Patch(':id/submit')
-  async submit(@Param('id') id: string) {
-    return this.courseService.submitCourse(id);
-  }
-
-  @Post(':id/sections')
-  async addSection(
-    @Param('id') courseId: string,
-    @Request() req,
-    @Body() dto: CreateSectionDto,
-  ) {
-    return this.courseService.addSection(courseId, dto, req.user.sub);
-  }
-
-  @Patch(':id/sections/reorder')
-  async reorderSections(
-    @Param('id') courseId: string,
-    @Body() dto: ReorderSectionsDto,
-    @Request() req,
-  ) {
-    return this.courseService.reorderSections(courseId, dto, req.user.sub);
-  }
-
-  @Patch(':id/sections/:sectionId')
-  async updateSection(
-    @Param('sectionId') sectionId: string,
-    @Body() dto: { title: string },
-    @Request() req,
-  ) {
-    return this.courseService.updateSection(sectionId, dto.title, req.user.sub);
-  }
-
-  @Delete(':id/sections/:sectionId')
-  async deleteSection(@Param('sectionId') sectionId: string, @Request() req) {
-    return this.courseService.deleteSection(sectionId, req.user.sub);
-  }
-
-  @Post(':id/sections/:sectionId/lessons')
-  async addLesson(
-    @Param('sectionId') sectionId: string,
-    @Body() dto: CreateLessonDto,
-    @Request() req,
-  ) {
-    return this.courseService.addLesson(sectionId, dto, req.user.sub);
-  }
-
-  @Delete(':id/lessons/:lessonId')
-  async deleteLesson(@Param('lessonId') lessonId: string, @Request() req) {
-    return this.courseService.deleteLesson(lessonId, req.user.sub);
-  }
-
-  @Get(':id/lessons/:lessonId')
-  async getLesson(@Param('lessonId') lessonId: string, @Request() req) {
-    return this.courseService.getLessonById(lessonId, req.user.sub);
-  }
-
-  @Patch(':id/lessons/:lessonId')
-  async updateLesson(
-    @Param('lessonId') lessonId: string,
-    @Body() dto: UpdateLessonFullDto,
-    @Request() req,
-  ) {
-    return this.courseService.updateLessonFull(lessonId, dto, req.user.sub);
-  }
-
-  @Get(':id/students')
-  async getCourseStudents(@Param('id') courseId: string, @Request() req) {
-    return this.courseService.getCourseStudents(req.user.sub, courseId);
+  @Get(':id/outcomes')
+  async getOutcomes(@Param('id') courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { outcomes: true },
+    });
+    return course?.outcomes || [];
   }
 
   @Patch(':id/outcomes')
@@ -489,16 +409,6 @@ export class TeacherCourseController {
     return this.courseService.updateOutcomes(courseId, {
       outcomes: dto.outcomes,
     });
-  }
-
-  // ===== OUTCOMES =====
-  @Get(':id/outcomes')
-  async getOutcomes(@Param('id') courseId: string) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-      select: { outcomes: true },
-    });
-    return course?.outcomes || [];
   }
 
   @Post(':id/outcomes')
@@ -544,7 +454,6 @@ export class TeacherCourseController {
     return { success: true };
   }
 
-  // src/modules/course/controllers/course.controller.ts
   @Get(':id/ai-settings')
   async getAiSettings(@Param('id') courseId: string, @Request() req) {
     const course = await this.prisma.course.findFirst({
@@ -622,7 +531,6 @@ export class TeacherCourseController {
     return { success: true, outline };
   }
 
-  // ===== FEEDBACK =====
   @Get(':id/reviews')
   async getCourseReviews(@Param('id') courseId: string, @Request() req) {
     const course = await this.prisma.course.findFirst({
@@ -673,7 +581,6 @@ export class TeacherCourseController {
     });
   }
 
-  // ===== CERTIFICATES =====
   @Post(':id/certificates')
   async issueCertificate(
     @Param('id') courseId: string,
@@ -713,6 +620,71 @@ export class TeacherCourseController {
         issuedAt: new Date(),
       },
     });
+  }
+
+  @Get(':id/students')
+  async getCourseStudents(@Param('id') courseId: string, @Request() req) {
+    return this.courseService.getCourseStudents(req.user.sub, courseId);
+  }
+
+  @Post(':id/sections')
+  async addSection(
+    @Param('id') courseId: string,
+    @Request() req,
+    @Body() dto: CreateSectionDto,
+  ) {
+    return this.courseService.addSection(courseId, dto, req.user.sub);
+  }
+
+  @Patch(':id/sections/reorder')
+  async reorderSections(
+    @Param('id') courseId: string,
+    @Body() dto: ReorderSectionsDto,
+    @Request() req,
+  ) {
+    return this.courseService.reorderSections(courseId, dto, req.user.sub);
+  }
+
+  @Patch(':id/sections/:sectionId')
+  async updateSection(
+    @Param('sectionId') sectionId: string,
+    @Body() dto: { title: string },
+    @Request() req,
+  ) {
+    return this.courseService.updateSection(sectionId, dto.title, req.user.sub);
+  }
+
+  @Post(':id/sections/:sectionId/lessons')
+  async addLesson(
+    @Param('sectionId') sectionId: string,
+    @Body() dto: CreateLessonDto,
+    @Request() req,
+  ) {
+    return this.courseService.addLesson(sectionId, dto, req.user.sub);
+  }
+
+  @Delete(':id/sections/:sectionId')
+  async deleteSection(@Param('sectionId') sectionId: string, @Request() req) {
+    return this.courseService.deleteSection(sectionId, req.user.sub);
+  }
+
+  @Get(':id/lessons/:lessonId')
+  async getLesson(@Param('lessonId') lessonId: string, @Request() req) {
+    return this.courseService.getLessonById(lessonId, req.user.sub);
+  }
+
+  @Patch(':id/lessons/:lessonId')
+  async updateLesson(
+    @Param('lessonId') lessonId: string,
+    @Body() dto: UpdateLessonFullDto,
+    @Request() req,
+  ) {
+    return this.courseService.updateLessonFull(lessonId, dto, req.user.sub);
+  }
+
+  @Delete(':id/lessons/:lessonId')
+  async deleteLesson(@Param('lessonId') lessonId: string, @Request() req) {
+    return this.courseService.deleteLesson(lessonId, req.user.sub);
   }
 
   @Put(':id/sections/:sectionId/mapping')
@@ -742,6 +714,30 @@ export class TeacherCourseController {
       data: { metadata },
     });
   }
+
+  @Patch(':id/submit')
+  async submit(@Param('id') id: string) {
+    return this.courseService.submitCourse(id);
+  }
+
+  @Get(':id')
+  async getOne(@Param('id') id: string, @Request() req) {
+    return this.courseService.getCourseDetailWithFullContent(id, req.user.sub);
+  }
+
+  @Put(':id')
+  async update(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() dto: UpdateCourseDto,
+  ) {
+    return this.courseService.updateCourse(id, dto, req.user.sub);
+  }
+
+  @Delete(':id')
+  async delete(@Param('id') id: string, @Request() req) {
+    return this.courseService.deleteCourse(id, req.user.sub);
+  }
 }
 
 @Controller('admin/courses')
@@ -759,59 +755,11 @@ export class AdminCourseController {
     return this.courseService.findAllForAdmin(query);
   }
 
-  @Get(':id')
-  async getCourseDetail(@Param('id') id: string) {
-    return this.courseService.getCourseDetailWithFullContent(id);
-  }
-
-  @Patch(':id/approve')
-  async approveCourse(@Param('id') id: string, @Request() req) {
-    return this.courseService.processReview(id, req.user.sub, {
-      action: 'APPROVED',
-    });
-  }
-
-  @Patch(':id/reject')
-  async rejectCourse(
-    @Param('id') id: string,
-    @Body() dto: { reason: string },
-    @Request() req,
-  ) {
-    return this.courseService.processReview(id, req.user.sub, {
-      action: 'REJECTED',
-      reason: dto.reason,
-    });
-  }
-
-  @Put(':id')
-  async updateCourse(
-    @Param('id') courseId: string,
-    @Body() dto: UpdateCourseDto,
-    @Req() req: any,
-  ) {
-    return this.courseService.updateCourse(courseId, dto, '');
-  }
-
-  @Delete(':id')
-  async deleteCourse(@Param('id') id: string) {
-    return this.courseService.deleteCourse(id, '');
-  }
-
   @Get(':id/admin-detail')
   async getAdminDetail(@Param('id') id: string) {
     return this.courseService.getCourseDetailWithFullContent(id);
   }
 
-  @Patch(':id/review')
-  async processReview(
-    @Param('id') courseId: string,
-    @Request() req,
-    @Body() dto: ProcessReviewDto,
-  ) {
-    return this.courseService.processReview(courseId, req.user.sub, dto);
-  }
-
-  // ===== FEEDBACK =====
   @Get(':id/reviews')
   async getCourseReviews(@Param('id') courseId: string, @Request() req) {
     const course = await this.prisma.course.findFirst({
@@ -862,7 +810,6 @@ export class AdminCourseController {
     });
   }
 
-  // ===== CERTIFICATES =====
   @Post(':id/certificates')
   async issueCertificate(
     @Param('id') courseId: string,
@@ -904,7 +851,52 @@ export class AdminCourseController {
     });
   }
 
-  // ===== ADVANCED REPORTS =====
+  @Patch(':id/approve')
+  async approveCourse(@Param('id') id: string, @Request() req) {
+    return this.courseService.processReview(id, req.user.sub, {
+      action: 'APPROVED',
+    });
+  }
+
+  @Patch(':id/reject')
+  async rejectCourse(
+    @Param('id') id: string,
+    @Body() dto: { reason: string },
+    @Request() req,
+  ) {
+    return this.courseService.processReview(id, req.user.sub, {
+      action: 'REJECTED',
+      reason: dto.reason,
+    });
+  }
+
+  @Patch(':id/review')
+  async processReview(
+    @Param('id') courseId: string,
+    @Request() req,
+    @Body() dto: ProcessReviewDto,
+  ) {
+    return this.courseService.processReview(courseId, req.user.sub, dto);
+  }
+
+  @Post(':id/reset-password')
+  @HttpCode(HttpStatus.OK)
+  async triggerResetPassword(
+    @Param('id') userId: string,
+    @Req() req: any,
+    @Ip() ip: string,
+  ) {
+    await this.usersService.triggerResetPassword(userId, req.user.sub, ip);
+    return {
+      message: 'Link reset mật khẩu đã được gửi đến email của người dùng.',
+    };
+  }
+
+  @Get(':id/audit-logs')
+  async getUserAuditLogs(@Param('id') userId: string) {
+    return this.usersService.getUserAuditLogs(userId);
+  }
+
   @Get('reports/lessons/:courseId')
   async getLessonProgressReport(
     @Param('courseId') courseId: string,
@@ -980,23 +972,22 @@ export class AdminCourseController {
     res.end();
   }
 
-  // ===== RESET PASSWORD =====
-  @Post(':id/reset-password')
-  @HttpCode(HttpStatus.OK)
-  async triggerResetPassword(
-    @Param('id') userId: string,
-    @Req() req: any,
-    @Ip() ip: string,
-  ) {
-    await this.usersService.triggerResetPassword(userId, req.user.sub, ip);
-    return {
-      message: 'Link reset mật khẩu đã được gửi đến email của người dùng.',
-    };
+  @Get(':id')
+  async getCourseDetail(@Param('id') id: string) {
+    return this.courseService.getCourseDetailWithFullContent(id);
   }
 
-  // ===== AUDIT LOGS =====
-  @Get(':id/audit-logs')
-  async getUserAuditLogs(@Param('id') userId: string) {
-    return this.usersService.getUserAuditLogs(userId);
+  @Put(':id')
+  async updateCourse(
+    @Param('id') courseId: string,
+    @Body() dto: UpdateCourseDto,
+    @Req() req: any,
+  ) {
+    return this.courseService.updateCourse(courseId, dto, '');
+  }
+
+  @Delete(':id')
+  async deleteCourse(@Param('id') id: string) {
+    return this.courseService.deleteCourse(id, '');
   }
 }

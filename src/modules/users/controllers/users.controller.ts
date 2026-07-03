@@ -49,7 +49,9 @@ import Redis from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Response } from 'express';
 
-// ==================== 1. USER CONTROLLER (Profile, self-management) ====================
+// ============================================================
+// 1. USER CONTROLLER
+// ============================================================
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
@@ -70,7 +72,6 @@ export class UsersController {
     return this.usersService.updateProfile(userId, dto);
   }
 
-  // Example admin-only test endpoint (có thể bỏ nếu không cần)
   @Get('admin/test')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -79,7 +80,9 @@ export class UsersController {
   }
 }
 
-// ==================== 2. ADMIN USER CONTROLLER (Quản lý người dùng) ====================
+// ============================================================
+// 2. ADMIN USER CONTROLLER
+// ============================================================
 @Controller('admin/users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
@@ -91,7 +94,6 @@ export class UsersAdminController {
     return this.usersService.findAll(query);
   }
 
-  // Student management
   @Get('students')
   async getStudents(@Query() query: UserQueryDto) {
     return this.usersService.findStudents(query);
@@ -138,6 +140,7 @@ export class UsersAdminController {
     await this.usersService.deleteUser(id, req.user.sub, ip);
   }
 
+  // ---- Có :id (cụ thể: có path con) ----
   @Get(':id/check-last-admin')
   async checkLastAdmin(
     @Param('id') userId: string,
@@ -174,6 +177,7 @@ export class UsersAdminController {
     };
   }
 
+  // ---- Route động cuối cùng ----
   @Get(':id')
   async getUserById(@Param('id') id: string) {
     return this.usersService.findProfileById(id);
@@ -223,13 +227,23 @@ export class UsersAdminController {
   }
 }
 
-// ==================== 3. TEACHER PROFILES CONTROLLER (Nộp hồ sơ, xem profile) ====================
+// ============================================================
+// 3. TEACHER PROFILES CONTROLLER
+// ============================================================
 @Controller('teacher-profiles')
 @UseGuards(JwtAuthGuard)
 export class TeacherProfilesController {
   constructor(
     private readonly teacherProfilesService: TeacherProfilesService,
   ) {}
+
+  @Get('my-profile')
+  @HttpCode(HttpStatus.OK)
+  async getMyProfile(@Request() req) {
+    const userId = req.user.sub;
+    const profile = await this.teacherProfilesService.findByUserId(userId);
+    return { success: true, data: profile };
+  }
 
   @Post('submit')
   @HttpCode(HttpStatus.CREATED)
@@ -260,17 +274,11 @@ export class TeacherProfilesController {
       data: profile,
     };
   }
-
-  @Get('my-profile')
-  @HttpCode(HttpStatus.OK)
-  async getMyProfile(@Request() req) {
-    const userId = req.user.sub;
-    const profile = await this.teacherProfilesService.findByUserId(userId);
-    return { success: true, data: profile };
-  }
 }
 
-// ==================== 4. ADMIN TEACHER PROFILES CONTROLLER (Duyệt hồ sơ) ====================
+// ============================================================
+// 4. ADMIN TEACHER PROFILES CONTROLLER
+// ============================================================
 @Controller('admin/teacher-profiles')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
@@ -287,12 +295,6 @@ export class AdminTeacherProfilesController {
       message: 'Lấy danh sách hồ sơ giáo viên thành công.',
       data: result,
     };
-  }
-
-  @Delete(':id')
-  async deleteProfile(@Param('id') id: string, @Request() req) {
-    const adminId = req.user.sub;
-    return this.teacherProfilesService.deleteProfile(id, adminId);
   }
 
   @Patch(':id/approve')
@@ -323,9 +325,17 @@ export class AdminTeacherProfilesController {
     );
     return result;
   }
+
+  @Delete(':id')
+  async deleteProfile(@Param('id') id: string, @Request() req) {
+    const adminId = req.user.sub;
+    return this.teacherProfilesService.deleteProfile(id, adminId);
+  }
 }
 
-// ==================== 5. STUDENT CONTROLLER (Học viên: profile, favorites, reviews, notifications) ====================
+// ============================================================
+// 5. STUDENT CONTROLLER
+// ============================================================
 @Controller('student')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.STUDENT)
@@ -339,7 +349,6 @@ export class StudentController {
     private readonly aiService: AiService,
   ) {}
 
-  // Profile & Password
   @Get('profile')
   async getProfile(@Request() req) {
     return this.usersService.findProfileById(req.user.sub);
@@ -355,7 +364,7 @@ export class StudentController {
     return this.authService.changePassword(req.user.sub, dto);
   }
 
-  // Notifications
+  // ===== NOTIFICATIONS =====
   @Get('notifications')
   async getNotifications(@Request() req, @Query('limit') limit = 20) {
     return this.prisma.notification.findMany({
@@ -374,7 +383,6 @@ export class StudentController {
     return { message: 'Marked as read' };
   }
 
-  // ===== CART =====
   @Get('cart')
   async getCart(@Request() req) {
     const items = await this.prisma.cartItem.findMany({
@@ -428,50 +436,6 @@ export class StudentController {
     return { message: 'Removed from cart' };
   }
 
-  // ===== ORDERS =====
-  @Post('orders')
-  async createOrder(
-    @Request() req,
-    @Body() body: { courseIds: string[]; paymentMethod: string },
-  ) {
-    const { courseIds, paymentMethod } = body;
-    if (!courseIds || courseIds.length === 0) {
-      throw new BadRequestException('Chưa chọn khóa học');
-    }
-    const userId = req.user.sub;
-    const courses = await this.prisma.course.findMany({
-      where: { id: { in: courseIds }, status: 'PUBLISHED' },
-    });
-    if (courses.length !== courseIds.length) {
-      throw new BadRequestException(
-        'Một số khóa học không tồn tại hoặc chưa xuất bản',
-      );
-    }
-    const total = courses.reduce((sum, c) => sum + c.price, 0);
-    // Tạo purchase (đơn hàng) với status PENDING
-    const purchase = await this.prisma.purchase.create({
-      data: {
-        userId,
-        courseId: courseIds[0], // Giả định chỉ mua 1 khóa học (nếu nhiều cần tạo nhiều purchase)
-        amount: total,
-        status: 'PENDING',
-        purchasedAt: new Date(),
-        paymentMethod,
-      },
-    });
-    // TODO: Gọi service thanh toán để tạo payment URL
-    const paymentUrl = null;
-    // Giả định gọi Stripe, VNPay, QR
-    if (paymentMethod === 'STRIPE') {
-      // paymentUrl = await this.stripeService.createCheckoutSession(purchase.id, total);
-    } else if (paymentMethod === 'VNPAY') {
-      // paymentUrl = await this.vnpayService.createPaymentUrl(purchase.id, total);
-    } else if (paymentMethod === 'QR') {
-      // paymentUrl = await this.qrService.generateQR(purchase.id, total);
-    }
-    return { orderId: purchase.id, paymentUrl };
-  }
-
   @Get('orders')
   async getMyOrders(@Request() req) {
     const orders = await this.prisma.purchase.findMany({
@@ -502,7 +466,40 @@ export class StudentController {
     return order;
   }
 
-  // ===== FAVORITES =====
+  @Post('orders')
+  async createOrder(
+    @Request() req,
+    @Body() body: { courseIds: string[]; paymentMethod: string },
+  ) {
+    const { courseIds, paymentMethod } = body;
+    if (!courseIds || courseIds.length === 0) {
+      throw new BadRequestException('Chưa chọn khóa học');
+    }
+    const userId = req.user.sub;
+    const courses = await this.prisma.course.findMany({
+      where: { id: { in: courseIds }, status: 'PUBLISHED' },
+    });
+    if (courses.length !== courseIds.length) {
+      throw new BadRequestException(
+        'Một số khóa học không tồn tại hoặc chưa xuất bản',
+      );
+    }
+    const total = courses.reduce((sum, c) => sum + c.price, 0);
+    const purchase = await this.prisma.purchase.create({
+      data: {
+        userId,
+        courseId: courseIds[0],
+        amount: total,
+        status: 'PENDING',
+        purchasedAt: new Date(),
+        paymentMethod,
+      },
+    });
+    // TODO: Gọi service thanh toán để tạo payment URL
+    let paymentUrl = null;
+    return { orderId: purchase.id, paymentUrl };
+  }
+
   @Get('favorites')
   async getFavorites(@Request() req) {
     const favorites = await this.prisma.favorite.findMany({
@@ -530,7 +527,6 @@ export class StudentController {
     return { message: 'Removed from favorites' };
   }
 
-  // ===== REVIEWS =====
   @Get('reviews')
   async getMyReviews(@Request() req) {
     return this.prisma.review.findMany({
@@ -583,7 +579,6 @@ export class StudentController {
     return { message: 'Review deleted' };
   }
 
-  // ===== CERTIFICATES =====
   @Get('certificates')
   async getCertificates(@Request() req) {
     return this.prisma.certificate.findMany({
@@ -603,7 +598,6 @@ export class StudentController {
       where: { id, userId: req.user.sub },
     });
     if (!cert) throw new NotFoundException('Không tìm thấy chứng chỉ');
-    // Giả định certificateUrl là URL công khai
     const file = await fetch(cert.certificateUrl);
     const buffer = await file.arrayBuffer();
     res.setHeader('Content-Type', 'application/pdf');
@@ -629,7 +623,6 @@ export class StudentController {
     };
   }
 
-  // ===== QUESTIONS =====
   @Get('questions')
   async getMyQuestions(@Request() req) {
     return this.prisma.question.findMany({
@@ -637,6 +630,19 @@ export class StudentController {
       include: { course: { select: { title: true } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  @Get('questions/:questionId')
+  async getQuestionDetail(
+    @Param('questionId') questionId: string,
+    @Request() req,
+  ) {
+    const question = await this.prisma.question.findFirst({
+      where: { id: questionId, userId: req.user.sub },
+      include: { course: { select: { title: true } } },
+    });
+    if (!question) throw new NotFoundException('Câu hỏi không tồn tại');
+    return question;
   }
 
   @Post('courses/:courseId/questions')
@@ -659,8 +665,6 @@ export class StudentController {
     });
   }
 
-  // ===== LABS =====
-  // src/modules/users/controllers/users.controller.ts
   @Get('labs/:lessonId')
   async getLab(@Param('lessonId') lessonId: string, @Request() req) {
     const lesson = await this.prisma.lesson.findUnique({
@@ -682,7 +686,6 @@ export class StudentController {
       where: { userId_lessonId: { userId: req.user.sub, lessonId } },
     });
 
-    // Lấy test cases từ content_payload (giả định lưu trong content dạng JSON)
     let testCases = [];
     let initialCode = '';
     let language = 'javascript';
@@ -691,9 +694,7 @@ export class StudentController {
       testCases = payload.testCases || [];
       initialCode = payload.initialCode || '';
       language = payload.language || 'javascript';
-    } catch {
-      // Nếu content không phải JSON, coi như không có test cases
-    }
+    } catch {}
 
     return {
       id: lesson.id,
@@ -718,25 +719,20 @@ export class StudentController {
     });
     if (!lesson) throw new NotFoundException('Không tìm thấy bài lab');
 
-    // Lấy test cases từ content
     let testCases = [];
     let language = 'javascript';
     try {
       const payload = JSON.parse(lesson.content || '{}');
       testCases = payload.testCases || [];
       language = payload.language || 'javascript';
-    } catch {
-      testCases = [];
-    }
+    } catch {}
 
-    // Gọi Code Runner Service (giả định có service)
     const result = await this.codeRunnerService.runCode({
       code,
       language,
       testCases,
     });
 
-    // Cập nhật progress
     const status = result.passed ? 'COMPLETED' : 'IN_PROGRESS';
     await this.prisma.learningProgress.upsert({
       where: { userId_lessonId: { userId: req.user.sub, lessonId } },
@@ -757,13 +753,11 @@ export class StudentController {
     return result;
   }
 
-  // ===== RECOMMENDATIONS =====
   @Get('recommendations')
   async getRecommendations(@Request() req, @Query('refresh') refresh: string) {
     const userId = req.user.sub;
     const cacheKey = `recommendations:${userId}`;
 
-    // Kiểm tra cache
     if (refresh !== 'true') {
       const cached = await this.redis.get(cacheKey);
       if (cached) {
@@ -771,7 +765,6 @@ export class StudentController {
       }
     }
 
-    // Tính toán recommendations
     const purchases = await this.prisma.purchase.findMany({
       where: { userId, status: 'COMPLETED' },
       include: { course: true },
@@ -798,27 +791,12 @@ export class StudentController {
       category: 'Unknown',
     }));
 
-    // Lưu cache 1 giờ
     await this.redis.setex(cacheKey, 3600, JSON.stringify(result));
     return result;
   }
 
   @Post('recommendations/refresh')
   async refreshRecommendations(@Request() req) {
-    // Gửi task async tạo gợi ý mới
     return { message: 'Đang làm mới gợi ý, vui lòng đợi...' };
-  }
-
-  @Get('questions/:questionId')
-  async getQuestionDetail(
-    @Param('questionId') questionId: string,
-    @Request() req,
-  ) {
-    const question = await this.prisma.question.findFirst({
-      where: { id: questionId, userId: req.user.sub },
-      include: { course: { select: { title: true } } },
-    });
-    if (!question) throw new NotFoundException('Câu hỏi không tồn tại');
-    return question;
   }
 }
