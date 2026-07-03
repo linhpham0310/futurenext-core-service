@@ -1,62 +1,69 @@
 // src/modules/ai/ai.service.ts
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OpenAI } from 'openai';
+import { GoogleGenAI } from '@google/genai';
 
 @Injectable()
 export class AiService {
-  private openai: OpenAI;
+  private ai: GoogleGenAI;
+  private model: string;
 
   constructor(private configService: ConfigService) {
-    this.openai = new OpenAI({
-      apiKey: this.configService.get('OPENAI_API_KEY'),
+    const apiKey =
+      this.configService.get<string>('GEMINI_API_KEY') ||
+      this.configService.get<string>('AI_API_KEY');
+
+    this.model =
+      this.configService.get<string>('AI_MODEL') || 'gemini-2.5-flash';
+
+    this.ai = new GoogleGenAI({
+      apiKey,
     });
+  }
+
+  private async generateJson(prompt: string) {
+    const response = await this.ai.models.generateContent({
+      model: this.model,
+      contents: prompt,
+    });
+
+    const text = response.text || '[]';
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      return [];
+    }
   }
 
   async generateOutline(courseTitle: string, description?: string) {
-    const prompt = `Tạo outline cho khóa học "${courseTitle}"${description ? ` với mô tả: ${description}` : ''}. 
-  Trả về dạng JSON với cấu trúc: 
-  [
-    { "title": "Chương 1", "lessons": ["Bài 1", "Bài 2"] },
-    { "title": "Chương 2", "lessons": ["Bài 3", "Bài 4"] }
-  ]
-  Giới hạn 5 chương, mỗi chương 2-4 bài học.`;
+    const prompt = `
+Tạo outline cho khóa học "${courseTitle}"
+${description ? `Mô tả: ${description}` : ''}
 
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: 'Bạn là chuyên gia thiết kế khóa học.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.7,
-      response_format: { type: 'json_object' },
-    });
+Trả về JSON đúng format:
 
-    const content = response.choices[0]?.message?.content || '[]';
-    return JSON.parse(content);
+[
+  {
+    "title": "Chương 1",
+    "lessons": ["Bài 1", "Bài 2"]
+  },
+  {
+    "title": "Chương 2",
+    "lessons": ["Bài 3", "Bài 4"]
+  }
+]
+
+Giới hạn 5 chương.
+Mỗi chương 2-4 bài.
+Chỉ trả về JSON, không giải thích.
+`;
+
+    return this.generateJson(prompt);
   }
 
   async generateCourseOutline(courseTitle: string, description?: string) {
-    const prompt = `Tạo outline cho khóa học "${courseTitle}"${description ? ` với mô tả: ${description}` : ''}. 
-    Trả về dạng JSON với cấu trúc: 
-    [
-      { "title": "Chương 1", "lessons": ["Bài 1", "Bài 2"] },
-      { "title": "Chương 2", "lessons": ["Bài 3", "Bài 4"] }
-    ]
-    Giới hạn 5 chương, mỗi chương 2-4 bài học.`;
-
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: 'Bạn là chuyên gia thiết kế khóa học.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.7,
-      response_format: { type: 'json_object' },
-    });
-
-    const content = response.choices[0]?.message?.content || '[]';
-    return JSON.parse(content);
+    return this.generateOutline(courseTitle, description);
   }
 
   async generateQuizQuestions(
@@ -64,45 +71,51 @@ export class AiService {
     type: string,
     numQuestions: number,
   ) {
-    const prompt = `Tạo ${numQuestions} câu hỏi ${type === 'ESSAY' ? 'tự luận' : 'trắc nghiệm'} về chủ đề "${topic}".
-    Trả về JSON với cấu trúc:
-    [
-      {
-        "text": "Câu hỏi?",
-        "type": "MCQ",
-        "options": ["A", "B", "C", "D"],
-        "correctAnswer": "A",
-        "explanation": "Giải thích"
-      }
-    ]`;
+    const prompt = `
+Tạo ${numQuestions} câu hỏi về chủ đề "${topic}"
 
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: 'Bạn là giáo viên tạo câu hỏi kiểm tra.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.5,
-    });
+Loại câu hỏi:
+${type === 'ESSAY' ? 'Tự luận' : 'Trắc nghiệm'}
 
-    const content = response.choices[0]?.message?.content || '[]';
-    return JSON.parse(content);
+JSON format:
+
+[
+  {
+    "text": "Câu hỏi?",
+    "type": "MCQ",
+    "options": ["A", "B", "C", "D"],
+    "correctAnswer": "A",
+    "explanation": "Giải thích"
+  }
+]
+
+Chỉ trả về JSON.
+`;
+
+    return this.generateJson(prompt);
   }
 
   async getRecommendations(userId: string, enrolledCourses: any[]) {
-    const prompt = `Dựa trên các khóa học đã đăng ký: ${enrolledCourses.map((c) => c.title).join(', ')}, 
-    đề xuất 5 khóa học tiếp theo phù hợp. Trả về danh sách ID khóa học.`;
+    const courses = enrolledCourses.map((c) => c.title).join(', ');
 
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: 'Bạn là chuyên gia tư vấn học tập.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.7,
-    });
+    const prompt = `
+Người dùng đã học các khóa:
 
-    const content = response.choices[0]?.message?.content || '[]';
-    return JSON.parse(content);
+${courses}
+
+Đề xuất 5 khóa học tiếp theo.
+
+JSON format:
+
+[
+  {
+    "courseTitle": "Tên khóa học"
+  }
+]
+
+Chỉ trả về JSON.
+`;
+
+    return this.generateJson(prompt);
   }
 }

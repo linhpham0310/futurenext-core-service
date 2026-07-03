@@ -6,24 +6,24 @@ import axios from 'axios';
 @Injectable()
 export class CodeRunnerService {
   private readonly logger = new Logger(CodeRunnerService.name);
-  private readonly judge0ApiKey: string;
   private readonly judge0BaseUrl: string;
 
   constructor(private configService: ConfigService) {
-    this.judge0ApiKey = this.configService.get<string>('JUDGE0_API_KEY') || '';
+    // Dùng local Judge0 hoặc lấy từ .env
     this.judge0BaseUrl =
       this.configService.get<string>('JUDGE0_BASE_URL') ||
-      'https://judge0-ce.p.rapidapi.com';
+      'http://localhost:2358';
   }
 
   private getLanguageId(language: string): number {
     const map: Record<string, number> = {
-      javascript: 63, // Node.js
-      python: 71, // Python 3
-      java: 62, // Java
-      cpp: 54, // C++
-      c: 50, // C
+      javascript: 63,
+      python: 71,
+      java: 62,
+      cpp: 54,
+      c: 50,
     };
+
     return map[language] || 63;
   }
 
@@ -38,6 +38,7 @@ export class CodeRunnerService {
         testCase.input,
         testCase.expected,
       );
+
       results.push({
         testCase: testCase.description || 'Test case',
         passed: result.passed,
@@ -45,6 +46,7 @@ export class CodeRunnerService {
         expected: testCase.expected,
         error: result.error,
       });
+
       if (result.passed) passedCount++;
     }
 
@@ -73,7 +75,6 @@ export class CodeRunnerService {
     const languageId = this.getLanguageId(language);
 
     try {
-      // Gửi code đến Judge0
       const submitResponse = await axios.post(
         `${this.judge0BaseUrl}/submissions`,
         {
@@ -85,7 +86,6 @@ export class CodeRunnerService {
         {
           headers: {
             'Content-Type': 'application/json',
-            'X-RapidAPI-Key': this.judge0ApiKey,
           },
           params: {
             base64_encoded: false,
@@ -96,19 +96,20 @@ export class CodeRunnerService {
 
       const submission = submitResponse.data;
       const output = submission.stdout || submission.stderr || '';
-      const passed = submission.status?.id === 3; // Accepted
+      const passed = submission.status?.id === 3;
 
       return {
         passed,
         output,
         error: submission.stderr || submission.compile_output || null,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Judge0 error: ${error.message}`);
+
       return {
         passed: false,
         output: '',
-        error: error.message,
+        error: error.message || 'Unknown error',
       };
     }
   }
