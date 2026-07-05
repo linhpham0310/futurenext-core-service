@@ -169,7 +169,7 @@ export class UsersService {
     const coursesEnrolled = await this.prisma.purchase.count({
       where: { userId: id, status: 'COMPLETED' },
     });
-    return { ...user, coursesEnrolled };
+    return { ...user, joinedAt: user.createdAt, coursesEnrolled };
   }
 
   async updateStudentStatus(

@@ -50,6 +50,7 @@ import Redis from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { Public } from '../../../shared/decorators/public.decorator';
 
 // ============================================================
 // 1. USER CONTROLLER
@@ -238,6 +239,16 @@ export class TeacherProfilesController {
   constructor(
     private readonly teacherProfilesService: TeacherProfilesService,
   ) {}
+
+  @Get('featured')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async getFeaturedTeachers(@Query('limit') limit = 8) {
+    const teachers = await this.teacherProfilesService.getFeaturedTeachers(
+      Number(limit),
+    );
+    return { success: true, data: teachers };
+  }
 
   @Get('my-profile')
   @HttpCode(HttpStatus.OK)
@@ -489,18 +500,53 @@ export class StudentController {
       );
     }
 
-    // Chặn mua lại khóa đã sở hữu (PENDING hoặc đã hoàn tất)
+    // Phân loại free và paid
+    const freeCourses = courses.filter((c) => Number(c.price) === 0);
+    const paidCourses = courses.filter((c) => Number(c.price) > 0);
+
+    // Xử lý free courses: enroll ngay
+    for (const course of freeCourses) {
+      // Kiểm tra đã có purchase chưa
+      const existing = await this.prisma.purchase.findUnique({
+        where: { userId_courseId: { userId, courseId: course.id } },
+      });
+      if (!existing) {
+        // Tạo purchase COMPLETED cho free course
+        await this.prisma.purchase.create({
+          data: {
+            userId,
+            courseId: course.id,
+            amount: 0,
+            status: 'COMPLETED',
+            purchasedAt: new Date(),
+            paymentMethod: 'FREE',
+          },
+        });
+        // Tạo learning progress
+        await this.enrollExisting(userId, course.id);
+      }
+    }
+
+    // Nếu chỉ có free courses, xóa cart và trả về success
+    if (paidCourses.length === 0) {
+      await this.prisma.cartItem.deleteMany({
+        where: { userId, courseId: { in: uniqueCourseIds } },
+      });
+      return { success: true, message: 'Đăng ký thành công!' };
+    }
+
+    // Xử lý paid courses: tạo order PENDING (như cũ)
+    const paidCourseIds = paidCourses.map((c) => c.id);
     const existingPurchases = await this.prisma.purchase.findMany({
       where: {
         userId,
-        courseId: { in: uniqueCourseIds },
+        courseId: { in: paidCourseIds },
         status: { in: ['PENDING', 'COMPLETED'] },
       },
       select: { courseId: true },
     });
-
     if (existingPurchases.length > 0) {
-      const owned = courses
+      const owned = paidCourses
         .filter((c) => existingPurchases.some((p) => p.courseId === c.id))
         .map((c) => c.title)
         .join(', ');
@@ -509,17 +555,16 @@ export class StudentController {
       );
     }
 
-    const total = courses.reduce((sum, c) => sum + Number(c.price), 0);
-
+    const total = paidCourses.reduce((sum, c) => sum + Number(c.price), 0);
     let purchases;
     try {
       purchases = await this.prisma.$transaction([
-        ...courses.map((course) =>
+        ...paidCourses.map((course) =>
           this.prisma.purchase.create({
             data: {
               userId,
               courseId: course.id,
-              amount: course.price, // giữ nguyên Decimal khi ghi DB
+              amount: course.price,
               status: 'PENDING',
               purchasedAt: new Date(),
               paymentMethod,
@@ -542,11 +587,8 @@ export class StudentController {
       throw error;
     }
 
-    // purchases mảng cuối cùng là kết quả deleteMany (count), bỏ qua khi map orderIds
-    const createdPurchases = purchases.slice(0, courses.length);
-
-    // TODO: Gọi service thanh toán để tạo payment URL, truyền total + createdPurchases
-    const paymentUrl = null;
+    const createdPurchases = purchases.slice(0, paidCourses.length);
+    const paymentUrl = null; // TODO: tích hợp payment
 
     return {
       orderId: createdPurchases[0]?.id,
@@ -556,6 +598,28 @@ export class StudentController {
     };
   }
 
+  // Helper (thêm vào class)
+  private async enrollExisting(userId: string, courseId: string) {
+    const lessons = await this.prisma.lesson.findMany({
+      where: { courseId },
+      select: { id: true },
+    });
+    const existing = await this.prisma.learningProgress.findFirst({
+      where: { userId, courseId },
+    });
+    if (!existing && lessons.length) {
+      await this.prisma.learningProgress.createMany({
+        data: lessons.map((l) => ({
+          userId,
+          courseId,
+          lessonId: l.id,
+          status: 'NOT_STARTED',
+          lastPosition: 0,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  }
   @Get('favorites')
   async getFavorites(@Request() req) {
     const favorites = await this.prisma.favorite.findMany({

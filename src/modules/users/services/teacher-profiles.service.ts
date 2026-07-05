@@ -23,6 +23,7 @@ import { TeacherProfileStatus } from '../entities/teacher-profile.entity';
 
 // [Task: S3-BE-03] Import AuditService từ module shared (Điều chỉnh đường dẫn theo cấu trúc thực tế nếu cần)
 import { AuditService } from '../../../shared/providers/audit/audit.service';
+import { PrismaService } from 'prisma/prisma.service';
 
 @Injectable()
 export class TeacherProfilesService {
@@ -35,6 +36,7 @@ export class TeacherProfilesService {
     private readonly dataSource: DataSource,
     // [Task: S3-BE-03] Inject AuditService vào constructor
     private readonly auditService: AuditService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // [Task: S3-BE-01] Logic nộp hồ sơ mới
@@ -290,5 +292,54 @@ export class TeacherProfilesService {
       details: { profileId, userEmail: profile.user?.email },
     });
     return { success: true };
+  }
+
+  async getFeaturedTeachers(limit: number = 8) {
+    const profiles = await this.teacherProfileRepo.find({
+      where: { status: TeacherProfileStatus.APPROVED },
+      relations: ['user'],
+      order: { updatedAt: 'DESC' },
+      take: limit,
+    });
+
+    if (profiles.length === 0) return [];
+
+    const teacherIds = profiles.map((p) => p.userId);
+
+    // Ép kiểu trả về thành mảng object với các field cần thiết
+    const stats = await this.prisma.$queryRaw`
+    SELECT 
+      u.id as "teacherId",
+      COUNT(DISTINCT pur."userId") as "studentCount",
+      COALESCE(AVG(rev.rating), 0) as "avgRating"
+    FROM public.users u
+    LEFT JOIN course_mgmt.courses c ON c."instructorId" = u.id
+    LEFT JOIN public.purchases pur ON pur."courseId" = c.id AND pur.status = 'COMPLETED'
+    LEFT JOIN public.reviews rev ON rev."courseId" = c.id
+    WHERE u.id = ANY(${teacherIds})
+    GROUP BY u.id
+  `;
+
+    // Ép kiểu an toàn
+    const rows = stats as unknown as Array<{
+      teacherId: string;
+      studentCount: number | bigint;
+      avgRating: number | string;
+    }>;
+
+    const statsMap = new Map(rows.map((s) => [s.teacherId, s]));
+
+    return profiles.map((profile) => {
+      const stat = statsMap.get(profile.userId);
+      return {
+        id: profile.userId,
+        fullName: profile.user.fullName,
+        avatarUrl: profile.user.avatarUrl,
+        bio: profile.bio,
+        expertise: profile.expertise,
+        rating: stat ? Number(stat.avgRating) : 0,
+        students: stat ? Number(stat.studentCount) : 0,
+      };
+    });
   }
 }
