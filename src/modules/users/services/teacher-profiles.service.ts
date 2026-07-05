@@ -23,7 +23,7 @@ import { TeacherProfileStatus } from '../entities/teacher-profile.entity';
 
 // [Task: S3-BE-03] Import AuditService từ module shared (Điều chỉnh đường dẫn theo cấu trúc thực tế nếu cần)
 import { AuditService } from '../../../shared/providers/audit/audit.service';
-import { PrismaService } from 'prisma/prisma.service';
+import { PrismaService } from '../../../../prisma/prisma.service';
 
 @Injectable()
 export class TeacherProfilesService {

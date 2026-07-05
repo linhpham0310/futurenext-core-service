@@ -12,6 +12,7 @@ import { TeacherProfilesService } from './teacher-profiles.service';
 import { TeacherProfile } from '../entities/teacher-profile.entity';
 import { User } from '../entities/user.entity';
 import { TeacherProfileStatus } from '../entities/teacher-profile.entity';
+import { PrismaService } from '../../../../prisma/prisma.service';
 
 // Import AuditService từ đường dẫn tương ứng của dự án bạn
 import { AuditService } from '../../../shared/providers/audit/audit.service';
@@ -52,6 +53,10 @@ describe('TeacherProfilesService', () => {
     log: jest.fn().mockResolvedValue(true),
   };
 
+  const mockPrismaService = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
+  };
+
   // [Task: S3-BE-04] 2. Thiết lập Testing Module trước mỗi Test Case
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -64,6 +69,7 @@ describe('TeacherProfilesService', () => {
         { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: DataSource, useValue: mockDataSource },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: PrismaService, useValue: mockPrismaService },
       ],
     }).compile();
 
