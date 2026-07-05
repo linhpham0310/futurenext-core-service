@@ -99,6 +99,7 @@ model Course {
   exams             Exam[]
   questions         Question[]
   learningOutcomes  LearningOutcome[] 
+  cartItems CartItem[] 
 
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
@@ -252,7 +253,7 @@ model Purchase {
   userId        String   @db.Uuid
   courseId      String   @db.Uuid
   amount        Decimal  @db.Decimal(12,2)
-  status        String   @default("COMPLETED")
+  status        String   @default("PENDING")
   purchasedAt   DateTime @default(now())
   createdAt     DateTime @default(now())
   paymentMethod String?  @default("UNKNOWN")
@@ -496,6 +497,8 @@ model CartItem {
   userId    String   @db.Uuid
   courseId  String   @db.Uuid
   createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade) 
 
   @@unique([userId, courseId])
   @@schema("public")

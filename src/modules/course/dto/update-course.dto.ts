@@ -21,11 +21,6 @@ export class UpdateCourseDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  shortDescription?: string;
-
-  @IsOptional()
   @IsNumber()
   @Min(0)
   price?: number;
@@ -36,13 +31,22 @@ export class UpdateCourseDto {
 
   @IsOptional()
   @IsString()
+  language?: string;
+
+  @IsOptional()
+  @IsString()
   level?: string;
 
   @IsOptional()
   @IsString()
-  language?: string;
+  @MaxLength(500)
+  shortDescription?: string;
 
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
 }

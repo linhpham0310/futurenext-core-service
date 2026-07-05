@@ -28,4 +28,11 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(20)
   phone?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Giới thiệu bản thân phải là chuỗi ký tự.' })
+  @MaxLength(500, {
+    message: 'Giới thiệu bản thân không được vượt quá 500 ký tự.',
+  })
+  bio?: string;
 }

@@ -99,10 +99,10 @@ export class DashboardService {
       unreadNotifications,
     ] = await Promise.all([
       this.prisma.purchase.count({ where: { userId, status: 'COMPLETED' } }),
-      this.prisma.lxLearningProgress.count({
+      this.prisma.learningProgress.count({
         where: { userId, status: 'COMPLETED' },
       }),
-      this.prisma.lxLearningProgress.count({ where: { userId } }),
+      this.prisma.learningProgress.count({ where: { userId } }),
       this.prisma.certificate.count({ where: { userId } }),
       this.prisma.notification.count({ where: { userId, isRead: false } }),
     ]);

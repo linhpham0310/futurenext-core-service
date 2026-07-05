@@ -5,9 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { InjectEntityManager } from '@nestjs/typeorm';
+import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
 import { CourseStatus } from '@prisma/client';
-import { EntityManager, In } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -33,6 +33,8 @@ export class CourseService {
     @InjectEntityManager() private entityManager: EntityManager,
     private supabaseStorage: SupabaseStorageService,
     private aiService: AiService,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
   // ==================== SUPABASE STORAGE ====================
@@ -155,7 +157,7 @@ export class CourseService {
           include: {
             lessons: { orderBy: { orderIndex: 'asc' } },
             mappings: {
-              include: { outcome: true }, // lấy thông tin outcome
+              include: { outcome: true },
             },
           },
         },
@@ -164,17 +166,37 @@ export class CourseService {
         category: true,
       },
     });
-    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
-    if (teacherId && course.instructorId !== teacherId)
-      throw new ForbiddenException(
-        'Bạn không có quyền xem nội dung khóa học này',
-      );
+    if (!course) throw new NotFoundException('Course not found');
+    if (teacherId && course.instructorId !== teacherId) {
+      throw new ForbiddenException('You do not own this course');
+    }
 
-    // Lấy instructor
-    const instructor = await this.entityManager.findOne(User, {
+    // Lấy instructor từ TypeORM
+    const instructor = await this.userRepository.findOne({
       where: { id: course.instructorId },
       select: ['id', 'fullName', 'email'],
     });
+
+    // Lấy admin IDs từ reviewLogs
+    const adminIds = course.reviewLogs
+      .map((log) => log.adminId)
+      .filter(Boolean);
+    let adminMap = new Map<string, string>();
+    if (adminIds.length > 0) {
+      const admins = await this.entityManager.find(User, {
+        where: { id: In(adminIds) },
+        select: ['id', 'fullName'],
+      });
+      adminMap = new Map(admins.map((u) => [u.id, u.fullName]));
+    }
+
+    // Xây dựng reviewLogs với adminName thật
+    const reviewLogs = course.reviewLogs.map((log) => ({
+      adminName: adminMap.get(log.adminId) || 'Unknown Admin',
+      action: log.action,
+      reason: log.reason,
+      createdAt: log.createdAt,
+    }));
 
     // Tính students và rating
     const students = await this.prisma.purchase.count({
@@ -189,21 +211,15 @@ export class CourseService {
         ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
         : 0;
 
-    // Chuyển đổi reviewLogs
-    const reviewLogs = course.reviewLogs.map((log) => ({
-      adminName: 'Admin', // có thể join với User để lấy tên admin
-      action: log.action,
-      reason: log.reason,
-      createdAt: log.createdAt,
-    }));
-
-    // Chuyển đổi sections để có loMappings
+    // Xây dựng sections với loMappings (nếu có)
     const sectionsWithMappings = course.sections.map((section) => ({
       ...section,
-      loMappings: section.mappings.map((m) => ({
-        loId: m.outcome.id,
-        loTitle: m.outcome.title,
-      })),
+      // Nếu có mappings thì lấy từ relation, hiện tại chưa có nên để trống
+      loMappings:
+        (section as any).mappings?.map((m: any) => ({
+          loId: m.outcome.id,
+          loTitle: m.outcome.title,
+        })) || [],
     }));
 
     return {
@@ -213,8 +229,7 @@ export class CourseService {
       rating: avgRating,
       reviewLogs,
       sections: sectionsWithMappings,
-      // outcomes đã có qua learningOutcomes
-      outcomes: course.learningOutcomes,
+      outcomes: course.learningOutcomes || [],
     };
   }
 
@@ -723,39 +738,63 @@ export class CourseService {
   }
 
   // ==================== ENROLLMENT & PROGRESS ====================
+
   async enrollCourse(userId: string, courseId: string) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId, status: 'APPROVED' },
+      select: { id: true, price: true, title: true, instructorId: true },
     });
     if (!course)
       throw new NotFoundException(
         'Khóa học không tồn tại hoặc chưa được xuất bản',
       );
-    const existing = await this.prisma.purchase.findUnique({
-      where: { userId_courseId: { userId, courseId } },
-    });
-    if (existing)
-      throw new BadRequestException('Bạn đã đăng ký khóa học này rồi');
 
+    const price = Number(course.price);
+
+    // Kiểm tra purchase đã tồn tại chưa
+    const existingPurchase = await this.prisma.purchase.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+      select: { status: true },
+    });
+
+    if (existingPurchase) {
+      if (price > 0 && existingPurchase.status !== 'COMPLETED') {
+        throw new BadRequestException('Vui lòng thanh toán trước khi đăng ký');
+      }
+      throw new BadRequestException('Bạn đã đăng ký khóa học này rồi');
+    }
+
+    // Nếu chưa có purchase
+    if (price > 0) {
+      // Đối với paid, không thể enroll nếu chưa thanh toán
+      throw new BadRequestException('Vui lòng thanh toán để đăng ký khóa học');
+    }
+
+    // --- Free course ---
+    // Tạo purchase
     const purchase = await this.prisma.purchase.create({
       data: {
         userId,
         courseId,
-        amount: course.price,
+        amount: 0,
         status: 'COMPLETED',
         purchasedAt: new Date(),
       },
     });
+
+    // Tạo revenue transaction
     await this.prisma.revenueTransaction.create({
       data: {
         userId,
         teacherId: course.instructorId,
         courseId,
-        amount: course.price,
+        amount: 0,
         type: 'PURCHASE',
         status: 'SUCCESS',
       },
     });
+
+    // Thông báo cho giáo viên
     await this.prisma.notification.create({
       data: {
         userId: course.instructorId,
@@ -764,7 +803,52 @@ export class CourseService {
         link: `/teacher/courses/${courseId}/students`,
       },
     });
+
+    // Tạo learning progress cho tất cả bài học
+    const lessons = await this.prisma.lesson.findMany({
+      where: { courseId },
+      select: { id: true },
+    });
+    if (lessons.length) {
+      await this.prisma.learningProgress.createMany({
+        data: lessons.map((lesson) => ({
+          userId,
+          courseId,
+          lessonId: lesson.id,
+          status: 'NOT_STARTED',
+          lastPosition: 0,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     return purchase;
+  }
+
+  // Helper: tạo learning progress nếu chưa có
+  private async enrollExisting(userId: string, courseId: string) {
+    // Kiểm tra xem đã có progress chưa
+    const existingProgress = await this.prisma.learningProgress.findFirst({
+      where: { userId, courseId },
+    });
+    if (!existingProgress) {
+      // Tạo learning progress cho tất cả các bài học trong khóa học
+      const lessons = await this.prisma.lesson.findMany({
+        where: { courseId },
+        select: { id: true },
+      });
+      await this.prisma.learningProgress.createMany({
+        data: lessons.map((lesson) => ({
+          userId,
+          courseId,
+          lessonId: lesson.id,
+          status: 'NOT_STARTED',
+          lastPosition: 0,
+        })),
+        skipDuplicates: true,
+      });
+    }
+    return { success: true, message: 'Đăng ký khóa học thành công' };
   }
 
   async getEnrolledCourses(userId: string) {
