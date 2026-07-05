@@ -25,7 +25,6 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { CertificateModule } from './modules/certificate/certificate.module';
 import { SupabaseStorageModule } from './modules/storage/supabase-storage.module';
-import { ReportModule } from './modules/report/report.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { LabModule } from './modules/lab/lab.module';
 import { AiModule } from './modules/ai/ai.module';
@@ -71,7 +70,6 @@ import { CodeRunnerModule } from './modules/code-runner/code-runner.module';
     ExamModule,
     LxModule,
     NotificationsModule,
-    ReportModule,
     RevenueModule,
     SearchModule,
     DashboardModule,
