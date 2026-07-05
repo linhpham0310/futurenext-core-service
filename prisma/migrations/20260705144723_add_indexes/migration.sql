@@ -165,7 +165,7 @@ CREATE TABLE "public"."purchases" (
     "userId" UUID NOT NULL,
     "courseId" UUID NOT NULL,
     "amount" DECIMAL(12,2) NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'COMPLETED',
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
     "purchasedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "paymentMethod" TEXT DEFAULT 'UNKNOWN',
@@ -553,6 +553,9 @@ ALTER TABLE "public"."exam_questions" ADD CONSTRAINT "exam_questions_examId_fkey
 
 -- AddForeignKey
 ALTER TABLE "public"."exam_results" ADD CONSTRAINT "exam_results_examId_fkey" FOREIGN KEY ("examId") REFERENCES "public"."exams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."CartItem" ADD CONSTRAINT "CartItem_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Question" ADD CONSTRAINT "Question_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
