@@ -156,9 +156,6 @@ export class CourseService {
           orderBy: { orderIndex: 'asc' },
           include: {
             lessons: { orderBy: { orderIndex: 'asc' } },
-            mappings: {
-              include: { outcome: true },
-            },
           },
         },
         reviewLogs: { orderBy: { createdAt: 'desc' } },
@@ -745,10 +742,10 @@ export class CourseService {
     }
 
     // Kiểm tra user đã có purchase chưa
-    const existingPurchase = await this.prisma.purchase.findUnique({
+    const existing = await this.prisma.purchase.findUnique({
       where: { userId_courseId: { userId, courseId } },
     });
-    if (existingPurchase && existingPurchase.status === 'COMPLETED') {
+    if (existing && existing.status === 'COMPLETED') {
       return this.enrollExisting(userId, courseId); // đã enroll, không làm gì thêm
     }
 

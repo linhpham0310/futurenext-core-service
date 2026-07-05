@@ -19,6 +19,7 @@ import {
   ForbiddenException,
   NotFoundException,
   Res,
+  ConflictException,
 } from '@nestjs/common';
 import { RolesGuard } from '../../../shared/guards/roles.guard';
 import { Roles } from '../../../shared/decorators/roles.decorator';
@@ -48,6 +49,7 @@ import { AiService } from '@/modules/ai/ai.service';
 import Redis from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 
 // ============================================================
 // 1. USER CONTROLLER
@@ -476,28 +478,82 @@ export class StudentController {
       throw new BadRequestException('Chưa chọn khóa học');
     }
     const userId = req.user.sub;
+    const uniqueCourseIds = [...new Set(courseIds)];
+
     const courses = await this.prisma.course.findMany({
-      where: { id: { in: courseIds }, status: 'APPROVED' },
+      where: { id: { in: uniqueCourseIds }, status: 'APPROVED' },
     });
-    if (courses.length !== courseIds.length) {
+    if (courses.length !== uniqueCourseIds.length) {
       throw new BadRequestException(
         'Một số khóa học không tồn tại hoặc chưa xuất bản',
       );
     }
-    const total = courses.reduce((sum, c) => sum + c.price, 0);
-    const purchase = await this.prisma.purchase.create({
-      data: {
+
+    // Chặn mua lại khóa đã sở hữu (PENDING hoặc đã hoàn tất)
+    const existingPurchases = await this.prisma.purchase.findMany({
+      where: {
         userId,
-        courseId: courseIds[0],
-        amount: total,
-        status: 'PENDING',
-        purchasedAt: new Date(),
-        paymentMethod,
+        courseId: { in: uniqueCourseIds },
+        status: { in: ['PENDING', 'COMPLETED'] },
       },
+      select: { courseId: true },
     });
-    // TODO: Gọi service thanh toán để tạo payment URL
+
+    if (existingPurchases.length > 0) {
+      const owned = courses
+        .filter((c) => existingPurchases.some((p) => p.courseId === c.id))
+        .map((c) => c.title)
+        .join(', ');
+      throw new BadRequestException(
+        `Bạn đã sở hữu hoặc có đơn hàng đang chờ xử lý cho: ${owned}`,
+      );
+    }
+
+    const total = courses.reduce((sum, c) => sum + Number(c.price), 0);
+
+    let purchases;
+    try {
+      purchases = await this.prisma.$transaction([
+        ...courses.map((course) =>
+          this.prisma.purchase.create({
+            data: {
+              userId,
+              courseId: course.id,
+              amount: course.price, // giữ nguyên Decimal khi ghi DB
+              status: 'PENDING',
+              purchasedAt: new Date(),
+              paymentMethod,
+            },
+          }),
+        ),
+        this.prisma.cartItem.deleteMany({
+          where: { userId, courseId: { in: uniqueCourseIds } },
+        }),
+      ]);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Một trong các khóa học đã được mua trước đó, vui lòng tải lại giỏ hàng.',
+        );
+      }
+      throw error;
+    }
+
+    // purchases mảng cuối cùng là kết quả deleteMany (count), bỏ qua khi map orderIds
+    const createdPurchases = purchases.slice(0, courses.length);
+
+    // TODO: Gọi service thanh toán để tạo payment URL, truyền total + createdPurchases
     const paymentUrl = null;
-    return { orderId: purchase.id, paymentUrl };
+
+    return {
+      orderId: createdPurchases[0]?.id,
+      orderIds: createdPurchases.map((p) => p.id),
+      total,
+      paymentUrl,
+    };
   }
 
   @Get('favorites')

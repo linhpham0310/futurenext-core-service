@@ -1,4 +1,3 @@
-// src/modules/course/dto/update-outcomes.dto.ts
 import { IsArray, ValidateNested, IsString, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
