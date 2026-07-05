@@ -183,11 +183,13 @@ export class CourseController {
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
   @Patch(':id/outcomes')
-  async updateOutcomes(
-    @Param('id') courseId: string,
-    @Body() dto: UpdateOutcomesDto,
-  ) {
-    return this.courseService.updateOutcomes(courseId, dto);
+  async updateOutcomes(@Param('id') courseId: string, @Body() dto: any) {
+    const normalizedOutcomes = dto.outcomes.map((item: any) =>
+      typeof item === 'string' ? { title: item } : item,
+    );
+    return this.courseService.updateOutcomes(courseId, {
+      outcomes: normalizedOutcomes,
+    });
   }
 
   @UseGuards(JwtAuthGuard, CourseOwnershipGuard)
@@ -414,20 +416,24 @@ export class TeacherCourseController {
   @Patch(':id/outcomes')
   async updateOutcomes(
     @Param('id') courseId: string,
-    @Body()
-    dto: { outcomes: { id?: string; title: string; description?: string }[] },
+    @Body() dto: any,
     @Request() req,
   ) {
-    // Kiểm tra quyền (đã có guard)
-    return this.courseService.updateOutcomes(courseId, dto.outcomes);
+    // Chuyển đổi outcomes
+    const normalizedOutcomes = dto.outcomes.map((item: any) =>
+      typeof item === 'string' ? { title: item } : item,
+    );
+    return this.courseService.updateOutcomes(courseId, {
+      outcomes: normalizedOutcomes,
+    });
   }
 
   @Post(':id/outcomes')
   async addOutcome(
     @Param('id') courseId: string,
     @Body('title') title: string,
-    @Body('description') description?: string,
     @Request() req,
+    @Body('description') description?: string,
   ) {
     return this.courseService.addOutcome(courseId, title, description);
   }

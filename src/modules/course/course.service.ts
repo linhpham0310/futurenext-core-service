@@ -1033,22 +1033,22 @@ export class CourseService {
     });
   }
 
-  // Cập nhật toàn bộ outcomes (thay thế)
-  async updateOutcomes(
-    courseId: string,
-    outcomes: { id?: string; title: string; description?: string }[],
-  ) {
-    // Xóa tất cả cũ
+  async updateOutcomes(courseId: string, dto: UpdateOutcomesDto) {
+    const { outcomes } = dto;
+    // Xóa tất cả outcomes cũ
     await this.prisma.learningOutcome.deleteMany({ where: { courseId } });
     // Tạo mới
-    return this.prisma.learningOutcome.createMany({
-      data: outcomes.map((o, idx) => ({
-        courseId,
-        title: o.title,
-        description: o.description,
-        orderIndex: idx + 1,
-      })),
-    });
+    if (outcomes && outcomes.length) {
+      await this.prisma.learningOutcome.createMany({
+        data: outcomes.map((o, idx) => ({
+          courseId,
+          title: o.title,
+          description: o.description || '',
+          orderIndex: idx + 1,
+        })),
+      });
+    }
+    return this.getOutcomes(courseId);
   }
 
   // Xóa một outcome
