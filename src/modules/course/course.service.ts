@@ -428,13 +428,6 @@ export class CourseService {
     };
   }
 
-  async updateOutcomes(courseId: string, dto: UpdateOutcomesDto) {
-    return this.prisma.course.update({
-      where: { id: courseId },
-      data: { outcomes: dto.outcomes },
-    });
-  }
-
   async submitCourse(courseId: string) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
@@ -480,12 +473,16 @@ export class CourseService {
       where: { id: courseId },
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
-    if (course.status !== 'SUBMITTED')
-      throw new BadRequestException(
-        'Khóa học phải ở trạng thái chờ duyệt (SUBMITTED)',
-      );
+    if (course.status !== 'SUBMITTED') {
+      throw new BadRequestException('Khóa học phải ở trạng thái chờ duyệt');
+    }
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    // Kiểm tra action hợp lệ
+    if (dto.action !== 'APPROVED' && dto.action !== 'REJECTED') {
+      throw new BadRequestException('Action phải là APPROVED hoặc REJECTED');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
       const updated = await tx.course.update({
         where: { id: courseId },
         data: { status: dto.action },
@@ -495,20 +492,17 @@ export class CourseService {
           courseId,
           adminId,
           action: dto.action,
-          reason: dto.reason || 'No reason provided',
+          reason: dto.reason,
         },
       });
+      if (dto.action === 'APPROVED') {
+        this.eventEmitter.emit('course.published', {
+          courseId,
+          instructorId: updated.instructorId,
+        });
+      }
       return updated;
     });
-
-    if (dto.action === CourseStatus.APPROVED) {
-      this.eventEmitter.emit('course.approved', {
-        courseId: result.id,
-        instructorId: result.instructorId,
-        title: result.title,
-      });
-    }
-    return result;
   }
 
   // ==================== SECTION MANAGEMENT ====================
@@ -742,106 +736,58 @@ export class CourseService {
   async enrollCourse(userId: string, courseId: string) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId, status: 'APPROVED' },
-      select: { id: true, price: true, title: true, instructorId: true },
+      select: { id: true, price: true, status: true },
     });
-    if (!course)
+    if (!course) {
       throw new NotFoundException(
         'Khóa học không tồn tại hoặc chưa được xuất bản',
       );
+    }
 
-    const price = Number(course.price);
-
-    // Kiểm tra purchase đã tồn tại chưa
+    // Kiểm tra user đã có purchase chưa
     const existingPurchase = await this.prisma.purchase.findUnique({
       where: { userId_courseId: { userId, courseId } },
-      select: { status: true },
     });
-
-    if (existingPurchase) {
-      if (price > 0 && existingPurchase.status !== 'COMPLETED') {
-        throw new BadRequestException('Vui lòng thanh toán trước khi đăng ký');
-      }
-      throw new BadRequestException('Bạn đã đăng ký khóa học này rồi');
+    if (existingPurchase && existingPurchase.status === 'COMPLETED') {
+      return this.enrollExisting(userId, courseId); // đã enroll, không làm gì thêm
     }
 
-    // Nếu chưa có purchase
-    if (price > 0) {
-      // Đối với paid, không thể enroll nếu chưa thanh toán
-      throw new BadRequestException('Vui lòng thanh toán để đăng ký khóa học');
+    // Nếu khóa học trả phí -> không cho enroll trực tiếp
+    if (course.price > 0) {
+      throw new BadRequestException(
+        'Khóa học này cần thanh toán. Vui lòng thêm vào giỏ hàng.',
+      );
     }
 
-    // --- Free course ---
-    // Tạo purchase
-    const purchase = await this.prisma.purchase.create({
+    // Khóa học free -> tạo purchase
+    await this.prisma.purchase.create({
       data: {
         userId,
         courseId,
         amount: 0,
         status: 'COMPLETED',
         purchasedAt: new Date(),
+        paymentMethod: 'FREE',
       },
     });
+    return this.enrollExisting(userId, courseId);
+  }
 
-    // Tạo revenue transaction
-    await this.prisma.revenueTransaction.create({
-      data: {
-        userId,
-        teacherId: course.instructorId,
-        courseId,
-        amount: 0,
-        type: 'PURCHASE',
-        status: 'SUCCESS',
-      },
-    });
-
-    // Thông báo cho giáo viên
-    await this.prisma.notification.create({
-      data: {
-        userId: course.instructorId,
-        title: 'Học viên mới đăng ký',
-        description: `Học viên đã đăng ký khóa học "${course.title}"`,
-        link: `/teacher/courses/${courseId}/students`,
-      },
-    });
-
-    // Tạo learning progress cho tất cả bài học
+  private async enrollExisting(userId: string, courseId: string) {
+    // Đảm bảo có learning progress cho tất cả bài học (nếu chưa có)
     const lessons = await this.prisma.lesson.findMany({
       where: { courseId },
       select: { id: true },
     });
-    if (lessons.length) {
-      await this.prisma.learningProgress.createMany({
-        data: lessons.map((lesson) => ({
-          userId,
-          courseId,
-          lessonId: lesson.id,
-          status: 'NOT_STARTED',
-          lastPosition: 0,
-        })),
-        skipDuplicates: true,
-      });
-    }
-
-    return purchase;
-  }
-
-  // Helper: tạo learning progress nếu chưa có
-  private async enrollExisting(userId: string, courseId: string) {
-    // Kiểm tra xem đã có progress chưa
-    const existingProgress = await this.prisma.learningProgress.findFirst({
+    const existing = await this.prisma.learningProgress.findFirst({
       where: { userId, courseId },
     });
-    if (!existingProgress) {
-      // Tạo learning progress cho tất cả các bài học trong khóa học
-      const lessons = await this.prisma.lesson.findMany({
-        where: { courseId },
-        select: { id: true },
-      });
+    if (!existing && lessons.length) {
       await this.prisma.learningProgress.createMany({
-        data: lessons.map((lesson) => ({
+        data: lessons.map((l) => ({
           userId,
           courseId,
-          lessonId: lesson.id,
+          lessonId: l.id,
           status: 'NOT_STARTED',
           lastPosition: 0,
         })),
@@ -1057,6 +1003,61 @@ export class CourseService {
     });
     if (!course) throw new NotFoundException('Course not found');
     return this.aiService.generateOutline(course.title, course.description);
+  }
+
+  // Lấy danh sách outcomes
+  async getOutcomes(courseId: string) {
+    return this.prisma.learningOutcome.findMany({
+      where: { courseId },
+      orderBy: { orderIndex: 'asc' },
+    });
+  }
+
+  // Thêm một outcome
+  async addOutcome(courseId: string, title: string, description?: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+    if (!course) throw new NotFoundException('Khóa học không tồn tại');
+    const last = await this.prisma.learningOutcome.findFirst({
+      where: { courseId },
+      orderBy: { orderIndex: 'desc' },
+    });
+    return this.prisma.learningOutcome.create({
+      data: {
+        courseId,
+        title,
+        description,
+        orderIndex: last ? last.orderIndex + 1 : 1,
+      },
+    });
+  }
+
+  // Cập nhật toàn bộ outcomes (thay thế)
+  async updateOutcomes(
+    courseId: string,
+    outcomes: { id?: string; title: string; description?: string }[],
+  ) {
+    // Xóa tất cả cũ
+    await this.prisma.learningOutcome.deleteMany({ where: { courseId } });
+    // Tạo mới
+    return this.prisma.learningOutcome.createMany({
+      data: outcomes.map((o, idx) => ({
+        courseId,
+        title: o.title,
+        description: o.description,
+        orderIndex: idx + 1,
+      })),
+    });
+  }
+
+  // Xóa một outcome
+  async deleteOutcome(courseId: string, outcomeId: string) {
+    const outcome = await this.prisma.learningOutcome.findFirst({
+      where: { id: outcomeId, courseId },
+    });
+    if (!outcome) throw new NotFoundException('Outcome không tồn tại');
+    return this.prisma.learningOutcome.delete({ where: { id: outcomeId } });
   }
 
   private async getInstructorMap(userIds: string[]): Promise<Map<string, any>> {

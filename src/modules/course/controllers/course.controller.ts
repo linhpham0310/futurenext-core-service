@@ -44,6 +44,10 @@ import * as ExcelJS from 'exceljs';
 import { v4 as uuidv4 } from 'uuid';
 import slugify from 'slugify';
 import { UpdateLessonFullDto } from '../dto/update-lesson-full.dto';
+import { getUserNameMap } from '@/modules/common/utils/get-user-names';
+import { EntityManager } from 'typeorm';
+import { InjectEntityManager } from '@nestjs/typeorm';
+import { CourseStatus } from '@prisma/client';
 
 @Controller('courses')
 export class CourseController {
@@ -51,6 +55,7 @@ export class CourseController {
     private readonly courseService: CourseService,
     private readonly prisma: PrismaService,
     private readonly storage: SupabaseStorageService,
+    @InjectEntityManager() private readonly entityManager: EntityManager, // ← thêm
   ) {}
 
   @Get('public')
@@ -199,21 +204,30 @@ export class CourseController {
 
   @Get(':id/reviews')
   async getCourseReviews(@Param('id') courseId: string) {
-    return this.prisma.review.findMany({
+    const reviews = await this.prisma.review.findMany({
       where: { courseId },
-      include: { user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    const userIds = reviews.map((r) => r.userId);
+    const userMap = await getUserNameMap(this.entityManager, userIds);
+    return reviews.map((r) => ({
+      ...r,
+      studentName: userMap.get(r.userId) || 'Unknown',
+    }));
   }
 
   @Get(':id/questions')
   async getCourseQuestions(@Param('id') courseId: string) {
-    // Có thể chỉ trả về câu hỏi đã được trả lời hoặc tất cả tùy logic
-    return this.prisma.question.findMany({
+    const questions = await this.prisma.question.findMany({
       where: { courseId },
-      include: { user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    const userIds = questions.map((q) => q.userId);
+    const userMap = await getUserNameMap(this.entityManager, userIds);
+    return questions.map((q) => ({
+      ...q,
+      studentName: userMap.get(q.userId) || 'Unknown',
+    }));
   }
 
   @Get(':id')
@@ -236,6 +250,7 @@ export class TeacherCourseController {
     private courseService: CourseService,
     private prisma: PrismaService,
     private aiService: AiService,
+    @InjectEntityManager() private readonly entityManager: EntityManager,
   ) {}
 
   @Get()
@@ -393,22 +408,18 @@ export class TeacherCourseController {
 
   @Get(':id/outcomes')
   async getOutcomes(@Param('id') courseId: string) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-      select: { outcomes: true },
-    });
-    return course?.outcomes || [];
+    return this.courseService.getOutcomes(courseId);
   }
 
   @Patch(':id/outcomes')
   async updateOutcomes(
     @Param('id') courseId: string,
-    @Body() dto: { outcomes: string[] },
+    @Body()
+    dto: { outcomes: { id?: string; title: string; description?: string }[] },
     @Request() req,
   ) {
-    return this.courseService.updateOutcomes(courseId, {
-      outcomes: dto.outcomes,
-    });
+    // Kiểm tra quyền (đã có guard)
+    return this.courseService.updateOutcomes(courseId, dto.outcomes);
   }
 
   @Post(':id/outcomes')
@@ -416,42 +427,18 @@ export class TeacherCourseController {
     @Param('id') courseId: string,
     @Body('title') title: string,
     @Body('description') description?: string,
+    @Request() req,
   ) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-    });
-    if (!course) throw new NotFoundException('Khóa học không tồn tại');
-    const outcomes = (course.outcomes as any[]) || [];
-    const newOutcome = {
-      id: uuidv4(),
-      title,
-      description,
-      createdAt: new Date(),
-    };
-    outcomes.push(newOutcome);
-    await this.prisma.course.update({
-      where: { id: courseId },
-      data: { outcomes },
-    });
-    return newOutcome;
+    return this.courseService.addOutcome(courseId, title, description);
   }
 
   @Delete(':id/outcomes/:outcomeId')
   async deleteOutcome(
     @Param('id') courseId: string,
     @Param('outcomeId') outcomeId: string,
+    @Request() req,
   ) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-    });
-    if (!course) throw new NotFoundException('Khóa học không tồn tại');
-    let outcomes = (course.outcomes as any[]) || [];
-    outcomes = outcomes.filter((o) => o.id !== outcomeId);
-    await this.prisma.course.update({
-      where: { id: courseId },
-      data: { outcomes },
-    });
-    return { success: true };
+    return this.courseService.deleteOutcome(courseId, outcomeId);
   }
 
   @Get(':id/ai-settings')
@@ -538,11 +525,16 @@ export class TeacherCourseController {
     });
     if (!course)
       throw new ForbiddenException('Bạn không phải chủ sở hữu khóa học');
-    return this.prisma.review.findMany({
+    const reviews = await this.prisma.review.findMany({
       where: { courseId },
-      include: { user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    const userIds = reviews.map((r) => r.userId);
+    const userMap = await getUserNameMap(this.entityManager, userIds);
+    return reviews.map((r) => ({
+      ...r,
+      studentName: userMap.get(r.userId) || 'Unknown',
+    }));
   }
 
   @Get(':id/questions')
@@ -552,11 +544,16 @@ export class TeacherCourseController {
     });
     if (!course)
       throw new ForbiddenException('Bạn không phải chủ sở hữu khóa học');
-    return this.prisma.question.findMany({
+    const questions = await this.prisma.question.findMany({
       where: { courseId },
-      include: { user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    const userIds = questions.map((q) => q.userId);
+    const userMap = await getUserNameMap(this.entityManager, userIds);
+    return questions.map((q) => ({
+      ...q,
+      studentName: userMap.get(q.userId) || 'Unknown',
+    }));
   }
 
   @Post(':id/questions/:questionId/answer')
@@ -748,6 +745,7 @@ export class AdminCourseController {
     private courseService: CourseService,
     private prisma: PrismaService,
     private usersService: UsersService,
+    @InjectEntityManager() private readonly entityManager: EntityManager,
   ) {}
 
   @Get()
@@ -767,11 +765,16 @@ export class AdminCourseController {
     });
     if (!course)
       throw new ForbiddenException('Bạn không phải chủ sở hữu khóa học');
-    return this.prisma.review.findMany({
+    const reviews = await this.prisma.review.findMany({
       where: { courseId },
-      include: { user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    const userIds = reviews.map((r) => r.userId);
+    const userMap = await getUserNameMap(this.entityManager, userIds);
+    return reviews.map((r) => ({
+      ...r,
+      studentName: userMap.get(r.userId) || 'Unknown',
+    }));
   }
 
   @Get(':id/questions')
@@ -781,11 +784,16 @@ export class AdminCourseController {
     });
     if (!course)
       throw new ForbiddenException('Bạn không phải chủ sở hữu khóa học');
-    return this.prisma.question.findMany({
+    const questions = await this.prisma.question.findMany({
       where: { courseId },
-      include: { user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    const userIds = questions.map((q) => q.userId);
+    const userMap = await getUserNameMap(this.entityManager, userIds);
+    return questions.map((q) => ({
+      ...q,
+      studentName: userMap.get(q.userId) || 'Unknown',
+    }));
   }
 
   @Post(':id/questions/:questionId/answer')
@@ -854,7 +862,7 @@ export class AdminCourseController {
   @Patch(':id/approve')
   async approveCourse(@Param('id') id: string, @Request() req) {
     return this.courseService.processReview(id, req.user.sub, {
-      action: 'APPROVED',
+      action: CourseStatus.APPROVED,
     });
   }
 
@@ -865,7 +873,7 @@ export class AdminCourseController {
     @Request() req,
   ) {
     return this.courseService.processReview(id, req.user.sub, {
-      action: 'REJECTED',
+      action: CourseStatus.REJECTED,
       reason: dto.reason,
     });
   }

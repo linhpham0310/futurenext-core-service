@@ -477,7 +477,7 @@ export class StudentController {
     }
     const userId = req.user.sub;
     const courses = await this.prisma.course.findMany({
-      where: { id: { in: courseIds }, status: 'PUBLISHED' },
+      where: { id: { in: courseIds }, status: 'APPROVED' },
     });
     if (courses.length !== courseIds.length) {
       throw new BadRequestException(
@@ -778,7 +778,7 @@ export class StudentController {
       enrolledCourses,
     );
     const courses = await this.prisma.course.findMany({
-      where: { id: { in: recommendedIds }, status: 'PUBLISHED' },
+      where: { id: { in: recommendedIds }, status: 'APPROVED' },
       take: 10,
     });
 
