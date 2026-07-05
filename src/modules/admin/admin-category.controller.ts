@@ -41,3 +41,13 @@ export class AdminCategoryController {
     return this.categoryService.deleteCategory(id);
   }
 }
+
+@Controller('categories')
+export class CategoriesController {
+  constructor(private readonly categoryService: AdminCategoryService) {}
+
+  @Get()
+  async getCategories() {
+    return this.categoryService.getCategories();
+  }
+}

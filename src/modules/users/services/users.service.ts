@@ -85,6 +85,7 @@ export class UsersService {
       'user.id',
       'user.email',
       'user.fullName',
+      'user.phone',
       'user.role',
       'user.status',
       'user.createdAt',
@@ -98,8 +99,27 @@ export class UsersService {
     }
     queryBuilder.orderBy('user.createdAt', 'DESC').skip(skip).take(limit);
     const [items, total] = await queryBuilder.getManyAndCount();
+
+    let enrichedItems: any[] = items;
+    if (role === UserRole.STUDENT) {
+      const userIds = items.map((u) => u.id);
+      const counts = userIds.length
+        ? await this.prisma.purchase.groupBy({
+            by: ['userId'],
+            where: { userId: { in: userIds }, status: 'COMPLETED' },
+            _count: { _all: true },
+          })
+        : [];
+      const countMap = new Map(counts.map((c) => [c.userId, c._count._all]));
+      enrichedItems = items.map((u) => ({
+        ...u,
+        joinedAt: u.createdAt,
+        coursesEnrolled: countMap.get(u.id) || 0,
+      }));
+    }
+
     return {
-      items,
+      items: enrichedItems, // giữ nguyên key "items"
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }

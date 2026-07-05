@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -59,7 +59,7 @@ export class AdminOrderService {
       where: { id },
       include: { course: true },
     });
-    if (!order) throw new Error('Order not found');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
 
     const user = await this.userRepo.findOne({ where: { id: order.userId } });
 
