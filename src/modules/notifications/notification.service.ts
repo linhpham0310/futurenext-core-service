@@ -165,4 +165,16 @@ export class NotificationService {
 
     return { success: true, count: data.length };
   }
+
+  async getAllPaginated(page: number, limit: number) {
+    return this.prisma.notification.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+  }
+
+  async countAll() {
+    return this.prisma.notification.count();
+  }
 }
