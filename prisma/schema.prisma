@@ -258,12 +258,14 @@ model Purchase {
   createdAt     DateTime @default(now())
   paymentMethod String?  @default("UNKNOWN")
   paymentId     String?
+  orderCode     String?  @db.VarChar(20)
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
   @@index([userId])
   @@index([courseId])
+  @@index([orderCode])  
   @@schema("public")
   @@map("purchases")
 }

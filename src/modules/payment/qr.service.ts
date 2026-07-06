@@ -1,21 +1,21 @@
-// qr.service.ts
 import { Injectable } from '@nestjs/common';
-import * as QRCode from 'qrcode';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class QrService {
   constructor(private configService: ConfigService) {}
 
-  async generateQR(orderId: string, amount: number): Promise<string> {
-    const bankInfo = {
-      bankName: this.configService.get('QR_BANK_NAME', 'Vietcombank'),
-      accountNumber: this.configService.get('QR_ACCOUNT_NUMBER', '1234567890'),
-      accountName: this.configService.get('QR_ACCOUNT_NAME', 'FutureNext'),
-      amount: amount,
-      orderId: orderId,
-    };
-    const content = `Chuyen khoan: ${bankInfo.bankName} - ${bankInfo.accountNumber} - ${bankInfo.accountName} - So tien: ${amount} - Noi dung: ${orderId}`;
-    return QRCode.toDataURL(content);
+  /**
+   * Tạo URL ảnh QR chuẩn VietQR (NAPAS) — app ngân hàng quét vào sẽ tự điền
+   * số tiền và nội dung chuyển khoản, không cần API key.
+   */
+  generateQR(orderCode: string, amount: number): string {
+    const bankId = this.configService.get('QR_BANK_ID', 'VCB');
+    const accountNo = this.configService.get('QR_ACCOUNT_NUMBER');
+    const accountName = this.configService.get('QR_ACCOUNT_NAME', 'FutureNext');
+    const addInfo = encodeURIComponent(`DH${orderCode}`);
+    const encodedName = encodeURIComponent(accountName);
+
+    return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${addInfo}&accountName=${encodedName}`;
   }
 }

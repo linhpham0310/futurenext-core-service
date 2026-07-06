@@ -21,6 +21,7 @@ import {
 import { SecurityAuditLog } from '@/shared/providers/audit/audit.entity';
 import { CodeRunnerModule } from '../code-runner/code-runner.module';
 import { AiModule } from '../ai/ai.module';
+import { PaymentModule } from '../payment/payment.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { AiModule } from '../ai/ai.module';
     forwardRef(() => AuthModule),
     CodeRunnerModule,
     AiModule,
+    PaymentModule,
   ],
   controllers: [
     UsersController,

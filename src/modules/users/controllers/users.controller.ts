@@ -20,6 +20,8 @@ import {
   NotFoundException,
   Res,
   ConflictException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { RolesGuard } from '../../../shared/guards/roles.guard';
 import { Roles } from '../../../shared/decorators/roles.decorator';
@@ -51,14 +53,20 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { Public } from '../../../shared/decorators/public.decorator';
-
+import { PaymentService } from '@/modules/payment/payment.service';
+import { SupabaseStorageService } from '@/modules/storage/supabase-storage.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { nanoid } from 'nanoid';
 // ============================================================
 // 1. USER CONTROLLER
 // ============================================================
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly storage: SupabaseStorageService,
+  ) {}
 
   @Get('me/profile')
   @HttpCode(HttpStatus.OK)
@@ -73,6 +81,30 @@ export class UsersController {
     @Body() dto: UpdateProfileDto,
   ) {
     return this.usersService.updateProfile(userId, dto);
+  }
+
+  @Post('me/avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadAvatar(
+    @Request() req,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const userId = req.user.sub;
+    // Tạo tên file duy nhất
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `avatars/${userId}/${Date.now()}.${fileExt}`;
+
+    // Upload lên Supabase
+    const publicUrl = await this.storage.uploadFile(
+      file.buffer,
+      fileName,
+      file.mimetype,
+    );
+
+    // Cập nhật avatarUrl cho user
+    await this.usersService.updateProfile(userId, { avatarUrl: publicUrl });
+
+    return { success: true, avatarUrl: publicUrl };
   }
 
   @Get('admin/test')
@@ -360,6 +392,7 @@ export class StudentController {
     private readonly codeRunnerService: CodeRunnerService,
     @InjectRedis() private readonly redis: Redis,
     private readonly aiService: AiService,
+    private readonly paymentService: PaymentService,
   ) {}
 
   @Get('profile')
@@ -405,7 +438,7 @@ export class StudentController {
     return items.map((item) => ({
       courseId: item.courseId,
       title: item.course.title,
-      price: item.course.price,
+      price: Number(item.course.price),
       thumbnail: item.course.thumbnailUrl,
     }));
   }
@@ -416,12 +449,15 @@ export class StudentController {
       where: { userId: req.user.sub },
       include: { course: true },
     });
-    const total = items.reduce((sum, item) => sum + item.course.price, 0);
+    const total = items.reduce(
+      (sum, item) => sum + Number(item.course.price),
+      0,
+    );
     return {
       items: items.map((item) => ({
         courseId: item.courseId,
         title: item.course.title,
-        price: item.course.price,
+        price: Number(item.course.price),
       })),
       total,
     };
@@ -460,7 +496,7 @@ export class StudentController {
     });
     return orders.map((o) => ({
       id: o.id,
-      total: o.amount,
+      total: Number(o.amount),
       status: o.status,
       createdAt: o.purchasedAt,
       items: [{ title: o.course.title }],
@@ -471,12 +507,10 @@ export class StudentController {
   async getOrderDetail(@Param('id') id: string, @Request() req) {
     const order = await this.prisma.purchase.findUnique({
       where: { id, userId: req.user.sub },
-      include: {
-        course: true,
-      },
+      include: { course: true },
     });
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    return order;
+    return { ...order, amount: Number(order.amount) };
   }
 
   @Post('orders')
@@ -556,6 +590,8 @@ export class StudentController {
     }
 
     const total = paidCourses.reduce((sum, c) => sum + Number(c.price), 0);
+    const orderCode = nanoid(8).toUpperCase();
+
     let purchases;
     try {
       purchases = await this.prisma.$transaction([
@@ -568,6 +604,7 @@ export class StudentController {
               status: 'PENDING',
               purchasedAt: new Date(),
               paymentMethod,
+              orderCode,
             },
           }),
         ),
@@ -588,13 +625,33 @@ export class StudentController {
     }
 
     const createdPurchases = purchases.slice(0, paidCourses.length);
-    const paymentUrl = null; // TODO: tích hợp payment
+    const orderTitle =
+      paidCourses.length === 1
+        ? paidCourses[0].title
+        : `Đơn hàng ${paidCourses.length} khóa học`;
+
+    let paymentUrl: string | null = null;
+    let qrDataUrl: string | null = null;
+    try {
+      const result = await this.paymentService.createCheckoutUrl(
+        paymentMethod as 'STRIPE' | 'VNPAY' | 'QR',
+        orderCode,
+        total,
+        orderTitle,
+      );
+      paymentUrl = result.paymentUrl;
+      qrDataUrl = result.qrDataUrl;
+    } catch (err) {
+      console.error('Lỗi tạo phiên thanh toán:', err);
+    }
 
     return {
       orderId: createdPurchases[0]?.id,
       orderIds: createdPurchases.map((p) => p.id),
+      orderCode,
       total,
       paymentUrl,
+      qrDataUrl,
     };
   }
 
@@ -620,6 +677,7 @@ export class StudentController {
       });
     }
   }
+
   @Get('favorites')
   async getFavorites(@Request() req) {
     const favorites = await this.prisma.favorite.findMany({

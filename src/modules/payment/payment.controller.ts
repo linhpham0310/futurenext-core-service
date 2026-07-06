@@ -4,6 +4,7 @@ import {
   Req,
   Res,
   Body,
+  Headers,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -28,9 +29,12 @@ export class PaymentController {
     return this.paymentService.handleVnpayWebhook(body);
   }
 
-  @Post('qr/webhook')
+  @Post('casso/webhook')
   @HttpCode(HttpStatus.OK)
-  async qrWebhook(@Body() body: any) {
-    return this.paymentService.handleQrWebhook(body);
+  async cassoWebhook(
+    @Body() body: any,
+    @Headers('secure-token') secureToken: string,
+  ) {
+    return this.paymentService.handleCassoWebhook(body, secureToken);
   }
 }
