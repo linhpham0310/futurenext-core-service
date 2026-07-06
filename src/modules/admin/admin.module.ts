@@ -18,6 +18,7 @@ import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { CertificateModule } from '../certificate/certificate.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { User } from '../users/entities/user.entity';
     SupabaseStorageModule,
     CertificateModule,
     TypeOrmModule.forFeature([User]),
+    NotificationsModule,
   ],
   controllers: [
     AdminNotificationController,
@@ -35,7 +37,6 @@ import { User } from '../users/entities/user.entity';
     CategoriesController,
   ],
   providers: [
-    NotificationService,
     AdminSettingsService,
     AdminOrderService,
     AdminCategoryService,
