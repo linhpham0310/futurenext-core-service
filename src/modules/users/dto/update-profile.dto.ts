@@ -18,7 +18,7 @@ export class UpdateProfileDto {
    * @example "https://example.com/new-avatar.jpg"
    */
   @IsOptional()
-  @IsUrl({}, { message: 'URL ảnh đại diện không hợp lệ.' })
+  @IsString()
   @MaxLength(1024, {
     message: 'URL ảnh đại diện không được vượt quá 1024 ký tự.',
   })
