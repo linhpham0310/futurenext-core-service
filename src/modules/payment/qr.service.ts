@@ -10,7 +10,7 @@ export class QrService {
    * số tiền và nội dung chuyển khoản, không cần API key.
    */
   generateQR(orderCode: string, amount: number): string {
-    const bankId = this.configService.get('QR_BANK_ID', 'VCB');
+    const bankId = this.configService.get('QR_BANK_NAME', 'VCB');
     const accountNo = this.configService.get('QR_ACCOUNT_NUMBER');
     const accountName = this.configService.get('QR_ACCOUNT_NAME', 'FutureNext');
     const addInfo = encodeURIComponent(`DH${orderCode}`);
