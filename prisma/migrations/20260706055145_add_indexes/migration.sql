@@ -170,6 +170,7 @@ CREATE TABLE "public"."purchases" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "paymentMethod" TEXT DEFAULT 'UNKNOWN',
     "paymentId" TEXT,
+    "orderCode" VARCHAR(20),
 
     CONSTRAINT "purchases_pkey" PRIMARY KEY ("id")
 );
@@ -433,6 +434,9 @@ CREATE INDEX "purchases_userId_idx" ON "public"."purchases"("userId");
 
 -- CreateIndex
 CREATE INDEX "purchases_courseId_idx" ON "public"."purchases"("courseId");
+
+-- CreateIndex
+CREATE INDEX "purchases_orderCode_idx" ON "public"."purchases"("orderCode");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "purchases_userId_courseId_key" ON "public"."purchases"("userId", "courseId");
