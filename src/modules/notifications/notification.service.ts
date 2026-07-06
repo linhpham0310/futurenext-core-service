@@ -1,12 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { CreateNotificationDto } from './dto/create-notification.dto';
+import {
+  CreateNotificationDto,
+  NotificationChannelType,
+} from './dto/create-notification.dto';
+import { EmailService } from './services/email.service';
 
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   async getUserNotifications(userId: string, limit: number = 20) {
     const take = Number(limit) || 20;
@@ -42,7 +49,7 @@ export class NotificationService {
   }
 
   async createNotification(dto: CreateNotificationDto) {
-    return this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         userId: dto.userId,
         title: dto.title,
@@ -51,6 +58,35 @@ export class NotificationService {
         isRead: dto.isRead || false,
       },
     });
+
+    if (dto.type === NotificationChannelType.EMAIL) {
+      try {
+        const user = await this.prisma.user.findUnique({
+          where: { id: dto.userId },
+          select: { email: true },
+        });
+        if (user?.email) {
+          await this.emailService.sendGenericNotificationEmail(
+            user.email,
+            dto.title,
+            dto.description,
+          );
+        } else {
+          this.logger.warn(
+            `Không tìm thấy email cho userId ${dto.userId}, bỏ qua gửi email thông báo`,
+          );
+        }
+      } catch (error) {
+        // Không throw - notification đã lưu DB thành công,
+        // lỗi gửi email không nên làm fail response
+        this.logger.error(
+          `Gửi email thông báo thất bại cho userId ${dto.userId}:`,
+          error.stack,
+        );
+      }
+    }
+
+    return notification;
   }
 
   async sendNotificationToTeacherOnEnroll(
@@ -121,9 +157,7 @@ export class NotificationService {
 
     await this.prisma.notification.createMany({ data });
 
-    // Nếu type là EMAIL, gửi email bất đồng bộ
     if (type === 'EMAIL') {
-      // Gửi email (có thể dùng queue)
       this.logger.log(
         `Sending ${data.length} emails for notification: ${title}`,
       );

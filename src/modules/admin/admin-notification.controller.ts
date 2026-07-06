@@ -4,7 +4,7 @@ import { RolesGuard } from '@/shared/guards/roles.guard';
 import { Roles } from '@/shared/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { NotificationService } from '../notifications/notification.service';
-import { CreateNotificationDto } from '../notifications/dto/create-notification.dto';
+import { CreateNotificationDto } from '../notifications/dto/CreateNotificationDto';
 
 @Controller('admin/notifications')
 @UseGuards(JwtAuthGuard, RolesGuard)

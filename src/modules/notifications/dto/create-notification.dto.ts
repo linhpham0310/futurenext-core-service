@@ -4,7 +4,13 @@ import {
   IsOptional,
   IsUUID,
   IsBoolean,
+  IsEnum,
 } from 'class-validator';
+
+export enum NotificationChannelType {
+  IN_APP = 'IN_APP',
+  EMAIL = 'EMAIL',
+}
 
 export class CreateNotificationDto {
   @IsUUID()
@@ -26,4 +32,8 @@ export class CreateNotificationDto {
   @IsBoolean()
   @IsOptional()
   isRead?: boolean;
+
+  @IsEnum(NotificationChannelType)
+  @IsOptional()
+  type?: NotificationChannelType;
 }
