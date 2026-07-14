@@ -1,16 +1,17 @@
 // src/modules/storage/storage.service.ts
-import { Injectable } from '@nestjs/common';
-import { createClient } from '@supabase/supabase-js';
+import { Injectable, Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class StorageService {
-  private supabase;
+  private readonly logger = new Logger(StorageService.name);
+  private readonly uploadDir = path.join(process.cwd(), 'public', 'uploads', 'certificates');
 
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
+    if (!fs.existsSync(this.uploadDir)) {
+      fs.mkdirSync(this.uploadDir, { recursive: true });
+    }
   }
 
   async uploadFile(
@@ -18,16 +19,14 @@ export class StorageService {
     fileName: string,
     contentType: string,
   ): Promise<string> {
-    const { data, error } = await this.supabase.storage
-      .from('certificates')
-      .upload(fileName, buffer, { contentType });
-
-    if (error) throw new Error(error.message);
-
-    const { data: urlData } = this.supabase.storage
-      .from('certificates')
-      .getPublicUrl(fileName);
-
-    return urlData.publicUrl;
+    try {
+      const fullPath = path.join(this.uploadDir, fileName);
+      fs.writeFileSync(fullPath, buffer);
+      
+      return `http://localhost:3000/uploads/certificates/${fileName}`;
+    } catch (error) {
+      this.logger.error(`Failed to upload certificate locally: ${error.message}`);
+      throw error;
+    }
   }
 }

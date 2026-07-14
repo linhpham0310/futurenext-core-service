@@ -17,13 +17,7 @@ export class PaymentService {
     private vnpayService: VnpayService,
     private qrService: QrService,
   ) {
-    const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
-    if (!secretKey) {
-      throw new Error(
-        'STRIPE_SECRET_KEY is not defined in environment variables',
-      );
-    }
-    this.stripe = new Stripe(secretKey);
+    this.logger.log('PaymentService initialized in MOCK mode');
   }
 
   async createCheckoutUrl(
@@ -32,48 +26,20 @@ export class PaymentService {
     amount: number,
     title: string,
   ): Promise<{ paymentUrl: string | null; qrDataUrl: string | null }> {
-    if (method === 'STRIPE') {
-      const url = await this.createStripeCheckoutSession(
-        orderCode,
-        amount,
-        title,
-      );
-      return { paymentUrl: url, qrDataUrl: null };
-    }
-    if (method === 'VNPAY') {
-      const url = this.vnpayService.createPaymentUrl(orderCode, amount);
-      return { paymentUrl: url, qrDataUrl: null };
-    }
-    if (method === 'QR') {
-      const dataUrl = this.qrService.generateQR(orderCode, amount);
-      return { paymentUrl: null, qrDataUrl: dataUrl };
-    }
-    throw new BadRequestException('Phương thức thanh toán không hợp lệ');
+    this.logger.log(`Mocking payment for order ${orderCode} via ${method}`);
+    
+    // Auto-confirm order for local development
+    await this.confirmOrder(orderCode, 'MOCK_PAYMENT', 'mock_txn_id');
+    
+    // Return a URL that redirects back to the frontend success page
+    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3001';
+    const mockUrl = `${frontendUrl}/orders?payment=success`;
+    
+    return { paymentUrl: mockUrl, qrDataUrl: null };
   }
 
-  private async createStripeCheckoutSession(
-    orderCode: string,
-    amount: number,
-    title: string,
-  ) {
-    const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'vnd',
-            product_data: { name: title },
-            unit_amount: amount,
-          },
-          quantity: 1,
-        },
-      ],
-      mode: 'payment',
-      success_url: `${this.configService.get('APP_URL')}/orders?payment=success`,
-      cancel_url: `${this.configService.get('APP_URL')}/cart?payment=cancel`,
-      metadata: { orderCode },
-    });
-    return session.url;
+  private async createStripeCheckoutSession() {
+    return 'http://localhost:3001/orders?payment=success';
   }
 
   async handleStripeWebhook(body: any, signature: string) {

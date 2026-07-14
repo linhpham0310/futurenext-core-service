@@ -40,6 +40,7 @@ import { UserRegisteredListener } from './listeners/user-registered.listener';
             port,
             secure,
             auth: { user, pass },
+            tls: { rejectUnauthorized: false },
           },
           defaults: { from },
         };

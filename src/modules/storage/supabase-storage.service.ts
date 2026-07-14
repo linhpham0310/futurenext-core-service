@@ -1,27 +1,23 @@
-import { Injectable } from '@nestjs/common';
-import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
+import { Injectable, Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class SupabaseStorageService {
-  private supabase;
+  private readonly logger = new Logger(SupabaseStorageService.name);
+  private readonly uploadDir = path.join(process.cwd(), 'public', 'uploads');
 
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        realtime: { transport: ws },
-      },
-    );
+    // Ensure upload directory exists
+    if (!fs.existsSync(this.uploadDir)) {
+      fs.mkdirSync(this.uploadDir, { recursive: true });
+    }
   }
 
   async createSignedUploadUrl(fileKey: string) {
-    const { data, error } = await this.supabase.storage
-      .from('course-videos')
-      .createSignedUploadUrl(fileKey);
-    if (error) throw new Error(error.message);
-    return { uploadUrl: data.signedUrl, fileKey };
+    // Mock signed URL for local development
+    const mockUrl = `http://localhost:3000/api/mock-upload?key=${fileKey}`;
+    return { uploadUrl: mockUrl, fileKey };
   }
 
   async uploadFile(
@@ -29,27 +25,35 @@ export class SupabaseStorageService {
     filePath: string,
     contentType: string,
   ): Promise<string> {
-    const { data, error } = await this.supabase.storage
-      .from('avatars')
-      .upload(filePath, buffer, {
-        contentType,
-        cacheControl: '3600',
-        upsert: false,
-      });
+    try {
+      // Create subdirectories if filePath contains them (e.g., 'avatars/user1.png')
+      const fullPath = path.join(this.uploadDir, filePath);
+      const dir = path.dirname(fullPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
 
-    if (error) throw new Error(error.message);
-
-    const { data: urlData } = this.supabase.storage
-      .from('avatars')
-      .getPublicUrl(filePath);
-    return urlData.publicUrl;
+      fs.writeFileSync(fullPath, buffer);
+      
+      // Return the public URL to access the file
+      // NestJS static assets should serve 'public' folder
+      return `http://localhost:3000/uploads/${filePath}`;
+    } catch (error) {
+      this.logger.error(`Failed to upload local file: ${error.message}`);
+      throw error;
+    }
   }
 
   async deleteFile(fileKey: string) {
-    const { error } = await this.supabase.storage
-      .from('course-videos')
-      .remove([fileKey]);
-    if (error) throw new Error(error.message);
-    return { success: true };
+    try {
+      const fullPath = path.join(this.uploadDir, fileKey);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+      return { success: true };
+    } catch (error) {
+      this.logger.error(`Failed to delete local file: ${error.message}`);
+      throw error;
+    }
   }
 }

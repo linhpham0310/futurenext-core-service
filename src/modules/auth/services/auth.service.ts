@@ -412,23 +412,26 @@ export class AuthService {
   }
 
   private async findAndRevokeSession(
-    hashedToken: string,
+    plainToken: string,
     userId: string,
   ): Promise<AuthSession | null> {
     let revokedSession: AuthSession | null = null;
     await this.entityManager.transaction(async (txManager) => {
-      const session = await txManager.findOne(AuthSession, {
+      const sessions = await txManager.find(AuthSession, {
         where: {
-          refreshTokenHash: hashedToken,
           userId,
           revokedAt: IsNull(),
           expiresAt: MoreThan(new Date()),
         },
       });
-      if (session) {
-        session.revokedAt = new Date();
-        await txManager.save(session);
-        revokedSession = session;
+      for (const session of sessions) {
+        const isMatch = await this.hashingService.compare(plainToken, session.refreshTokenHash);
+        if (isMatch) {
+          session.revokedAt = new Date();
+          await txManager.save(session);
+          revokedSession = session;
+          break;
+        }
       }
     });
     return revokedSession;
@@ -446,8 +449,7 @@ export class AuthService {
     userId: string,
     oldRefreshToken: string,
   ): Promise<{ newAccessToken: string; newRefreshToken: string }> {
-    const hashedOld = await this.hashingService.hash(oldRefreshToken);
-    const revokedSession = await this.findAndRevokeSession(hashedOld, userId);
+    const revokedSession = await this.findAndRevokeSession(oldRefreshToken, userId);
     if (!revokedSession) {
       await this.revokeAllUserSessions(userId);
       this.auditService.log({

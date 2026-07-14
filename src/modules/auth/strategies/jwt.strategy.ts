@@ -37,7 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     this.logger.log('JwtStrategy initialized.');
   }
 
-  async validate(payload: JwtAccessPayload): Promise<JwtAccessPayload> {
+  async validate(payload: JwtAccessPayload): Promise<any> {
     this.logger.verbose(
       `Validating access token payload for user ID: ${payload.sub}`,
     );
@@ -53,6 +53,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       throw new UnauthorizedException('Tài khoản đang bị khóa tạm thời.');
     }
-    return payload;
+    return {
+      userId: payload.sub,
+      role: payload.role,
+      sub: payload.sub,
+      iat: payload.iat,
+      exp: payload.exp,
+    };
   }
 }
