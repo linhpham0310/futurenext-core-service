@@ -8,10 +8,13 @@ import { PrismaService } from 'prisma/prisma.service';
 import Stripe from 'stripe';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
+import { InjectEntityManager } from '@nestjs/typeorm';
+import { EntityManager, In } from 'typeorm';
 import { VnpayService } from './vnpay.service';
 import { QrService } from './qr.service';
 import { CreatePaymentAccountDto } from './dto/create-payment-account.dto';
 import { CreateWithdrawalRequestDto } from './dto/create-withdrawal-request.dto';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class PaymentService {
@@ -23,10 +26,10 @@ export class PaymentService {
     private prisma: PrismaService,
     private vnpayService: VnpayService,
     private qrService: QrService,
+    @InjectEntityManager() private entityManager: EntityManager,
   ) {
     this.logger.log('PaymentService initialized in MOCK mode');
   }
-
   async createCheckoutUrl(
     method: 'STRIPE' | 'VNPAY' | 'QR',
     orderCode: string,
@@ -392,7 +395,6 @@ export class PaymentService {
     if (q) {
       where.OR = [
         { orderCode: { contains: q, mode: 'insensitive' } },
-        { user: { fullName: { contains: q, mode: 'insensitive' } } },
         { course: { title: { contains: q, mode: 'insensitive' } } },
       ];
     }
@@ -400,7 +402,6 @@ export class PaymentService {
       this.prisma.purchase.findMany({
         where,
         include: {
-          user: { select: { fullName: true } },
           course: { select: { title: true } },
         },
         skip,
@@ -409,10 +410,20 @@ export class PaymentService {
       }),
       this.prisma.purchase.count({ where }),
     ]);
+
+    const userIds = [...new Set(items.map((p) => p.userId))];
+    const users = userIds.length
+      ? await this.entityManager.find(User, {
+          where: { id: In(userIds) },
+          select: ['id', 'fullName'],
+        })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u.fullName]));
+
     const mapped = items.map((p) => ({
       id: p.id,
       code: p.orderCode || `TXN-${p.id.slice(0, 8)}`,
-      studentName: p.user.fullName,
+      studentName: userMap.get(p.userId) || 'Unknown',
       courseTitle: p.course.title,
       amount: Number(p.amount),
       paymentMethod: p.paymentMethod || 'Không rõ',
@@ -437,13 +448,21 @@ export class PaymentService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.withdrawalRequest.findMany({
         where,
-        include: { teacher: { select: { fullName: true } } },
         skip,
         take: +limit,
         orderBy: { requestedAt: 'desc' },
       }),
       this.prisma.withdrawalRequest.count({ where }),
     ]);
+
+    const teacherIds = [...new Set(items.map((w) => w.teacherId))];
+    const teachers = teacherIds.length
+      ? await this.entityManager.find(User, {
+          where: { id: In(teacherIds) },
+          select: ['id', 'fullName'],
+        })
+      : [];
+    const teacherMap = new Map(teachers.map((t) => [t.id, t.fullName]));
 
     const mapped = await Promise.all(
       items.map(async (w) => {
@@ -460,7 +479,7 @@ export class PaymentService {
         return {
           id: w.id,
           teacherId: w.teacherId,
-          teacherName: w.teacher.fullName,
+          teacherName: teacherMap.get(w.teacherId) || 'Unknown',
           bankName: w.bankName || '',
           accountNumber: w.accountNumber || '',
           amount: Number(w.amount),

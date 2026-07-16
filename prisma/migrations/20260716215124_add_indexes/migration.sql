@@ -387,6 +387,39 @@ CREATE TABLE "public"."Question" (
     CONSTRAINT "Question_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "public"."payment_accounts" (
+    "id" UUID NOT NULL,
+    "teacherId" UUID NOT NULL,
+    "type" TEXT NOT NULL DEFAULT 'BANK',
+    "bankName" TEXT,
+    "accountNumber" TEXT NOT NULL,
+    "accountHolder" TEXT NOT NULL,
+    "isDefault" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "payment_accounts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."withdrawal_requests" (
+    "id" UUID NOT NULL,
+    "teacherId" UUID NOT NULL,
+    "accountId" UUID NOT NULL,
+    "amount" DECIMAL(12,2) NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "bankName" TEXT,
+    "accountNumber" TEXT,
+    "accountHolder" TEXT,
+    "requestedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "processedAt" TIMESTAMP(3),
+    "processedBy" UUID,
+    "rejectionReason" TEXT,
+
+    CONSTRAINT "withdrawal_requests_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "courses_slug_key" ON "course_mgmt"."courses"("slug");
 
@@ -513,6 +546,18 @@ CREATE INDEX "Question_userId_idx" ON "public"."Question"("userId");
 -- CreateIndex
 CREATE INDEX "Question_courseId_idx" ON "public"."Question"("courseId");
 
+-- CreateIndex
+CREATE INDEX "payment_accounts_teacherId_idx" ON "public"."payment_accounts"("teacherId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "payment_accounts_teacherId_accountNumber_key" ON "public"."payment_accounts"("teacherId", "accountNumber");
+
+-- CreateIndex
+CREATE INDEX "withdrawal_requests_teacherId_idx" ON "public"."withdrawal_requests"("teacherId");
+
+-- CreateIndex
+CREATE INDEX "withdrawal_requests_status_idx" ON "public"."withdrawal_requests"("status");
+
 -- AddForeignKey
 ALTER TABLE "course_mgmt"."courses" ADD CONSTRAINT "courses_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "public"."Category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -563,3 +608,6 @@ ALTER TABLE "public"."CartItem" ADD CONSTRAINT "CartItem_courseId_fkey" FOREIGN 
 
 -- AddForeignKey
 ALTER TABLE "public"."Question" ADD CONSTRAINT "Question_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "course_mgmt"."courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."withdrawal_requests" ADD CONSTRAINT "withdrawal_requests_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."payment_accounts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
