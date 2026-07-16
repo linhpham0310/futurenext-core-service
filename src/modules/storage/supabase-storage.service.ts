@@ -34,7 +34,7 @@ export class SupabaseStorageService {
       }
 
       fs.writeFileSync(fullPath, buffer);
-      
+
       // Return the public URL to access the file
       // NestJS static assets should serve 'public' folder
       return `http://localhost:3000/uploads/${filePath}`;

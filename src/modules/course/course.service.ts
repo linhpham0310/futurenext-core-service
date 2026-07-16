@@ -101,9 +101,14 @@ export class CourseService {
     if (!course) throw new NotFoundException('Không tìm thấy khóa học');
     if (teacherId && course.instructorId !== teacherId)
       throw new ForbiddenException('Bạn không có quyền cập nhật khóa học này');
+
+    // Không cho phép đổi status qua endpoint update chung
+    // Mọi thay đổi trạng thái phải qua approve/reject/processReview để có review log
+    const { status, ...safeData } = dto as any;
+
     return this.prisma.course.update({
       where: { id: courseId },
-      data: dto,
+      data: safeData,
     });
   }
 
@@ -156,6 +161,7 @@ export class CourseService {
           orderBy: { orderIndex: 'asc' },
           include: {
             lessons: { orderBy: { orderIndex: 'asc' } },
+            mappings: { include: { outcome: true } },
           },
         },
         reviewLogs: { orderBy: { createdAt: 'desc' } },
@@ -211,12 +217,17 @@ export class CourseService {
     // Xây dựng sections với loMappings (nếu có)
     const sectionsWithMappings = course.sections.map((section) => ({
       ...section,
-      // Nếu có mappings thì lấy từ relation, hiện tại chưa có nên để trống
-      loMappings:
-        (section as any).mappings?.map((m: any) => ({
-          loId: m.outcome.id,
-          loTitle: m.outcome.title,
-        })) || [],
+      lessons: section.lessons.map((lesson) => {
+        const aiMetadata = (lesson.aiMetadata as any) || {};
+        return {
+          ...lesson,
+          mainTopics: aiMetadata.mainTopics || [],
+        };
+      }),
+      loMappings: section.mappings.map((m) => ({
+        loId: m.outcome.id,
+        loTitle: m.outcome.title,
+      })),
     }));
 
     return {
@@ -259,6 +270,26 @@ export class CourseService {
           orderBy: { createdAt: 'desc' },
         },
         _count: { select: { purchases: true } },
+        // ===== THÊM VÀO ĐÂY =====
+        instructor: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            avatarUrl: true,
+            // Nếu có thêm trường thì thêm vào
+            bio: true,
+            title: true,
+          },
+        },
+        learningOutcomes: {
+          orderBy: { orderIndex: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+          },
+        },
       },
     });
     if (!course) throw new NotFoundException('Không tìm thấy khóa học');
@@ -271,7 +302,6 @@ export class CourseService {
       });
       isEnrolled = !!purchase;
       if (isEnrolled) {
-        // Tính tiến độ
         const totalLessons = await this.prisma.lesson.count({
           where: { courseId },
         });
@@ -293,7 +323,6 @@ export class CourseService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Join user info cho reviews + questions qua TypeORM (User không nằm trong Prisma schema)
     const reviewUserIds = course.reviews.map((r) => r.userId);
     const questionUserIds = questions.map((q) => q.userId);
     const allUserIds = [...new Set([...reviewUserIds, ...questionUserIds])];
@@ -321,6 +350,14 @@ export class CourseService {
       };
     });
 
+    // Lấy outcomes từ learningOutcomes (ưu tiên)
+    const outcomesFromLearning = course.learningOutcomes.map((lo) => lo.title);
+    // Nếu course.outcomes đã có (kiểu string[]), dùng nó, ngược lại dùng từ learningOutcomes
+    const outcomes =
+      (course.outcomes as string[])?.length > 0
+        ? (course.outcomes as string[])
+        : outcomesFromLearning;
+
     return {
       ...course,
       students: course._count.purchases,
@@ -330,21 +367,32 @@ export class CourseService {
           ? course.reviews.reduce((sum, r) => sum + r.rating, 0) /
             course.reviews.length
           : 0,
-      outcomes: (course.outcomes as string[]) || [],
+      outcomes,
       isEnrolled,
       progress,
       reviews: reviewsWithUser,
       questions: questionsWithUser,
+      instructor: course.instructor, // ← thêm
     };
   }
 
   async findAllPublished(query: any) {
-    const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 10;
-    const skip = (page - 1) * limit;
-    const q = query.q || '';
+    const {
+      page = 1,
+      limit = 10,
+      q = '',
+      category, // thêm
+      level, // thêm
+      minPrice, // thêm
+      maxPrice, // thêm
+      rating, // thêm
+      sortBy, // thêm
+    } = query;
 
+    const skip = (page - 1) * limit;
     const where: any = { status: 'APPROVED' };
+
+    // Tìm kiếm
     if (q) {
       where.OR = [
         { title: { contains: q, mode: 'insensitive' } },
@@ -352,18 +400,70 @@ export class CourseService {
       ];
     }
 
+    // Filter theo category
+    if (category) {
+      where.categoryId = category;
+    }
+
+    // Filter theo level
+    if (level) {
+      where.level = level;
+    }
+
+    // Filter theo giá
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      where.price = {};
+      if (minPrice !== undefined) where.price.gte = minPrice;
+      if (maxPrice !== undefined) where.price.lte = maxPrice;
+    }
+
+    // Filter theo rating (tối thiểu)
+    if (rating) {
+      // Cần tính rating trung bình từ reviews, nhưng có thể dùng trường rating có sẵn nếu có
+      // Giả sử course có trường rating (có thể tính từ reviews)
+      // Nếu chưa có, cần thêm vào model hoặc tính trong query
+      // Tạm thời bỏ qua hoặc dùng subquery
+      // Đây là placeholder, bạn cần điều chỉnh theo schema thực tế
+    }
+
+    // Sắp xếp
+    let orderBy: any = { createdAt: 'desc' };
+    if (sortBy === 'popular') {
+      // Sắp xếp theo số học viên (students) hoặc số lượng purchase
+      orderBy = { students: 'desc' };
+    } else if (sortBy === 'newest') {
+      orderBy = { createdAt: 'desc' };
+    } else if (sortBy === 'trending') {
+      // Có thể sắp xếp theo lượt xem hoặc đánh giá gần đây
+      orderBy = { rating: 'desc' };
+    }
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.course.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
+        include: {
+          instructor: {
+            select: { id: true, fullName: true, email: true, avatarUrl: true },
+          },
+          category: true,
+          _count: { select: { purchases: true } },
+        },
       }),
       this.prisma.course.count({ where }),
     ]);
 
+    // Map dữ liệu
+    const mapped = items.map((course) => ({
+      ...course,
+      students: course._count.purchases,
+      instructor: course.instructor,
+    }));
+
     return {
-      data: items,
+      data: mapped,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -892,7 +992,7 @@ export class CourseService {
         where,
         include: {
           user: { select: { id: true, fullName: true, email: true } },
-          course: { select: { title: true } },
+          course: { select: { id: true, title: true } },
         },
         skip,
         take: limit,
@@ -900,16 +1000,40 @@ export class CourseService {
       }),
       this.prisma.purchase.count({ where }),
     ]);
-    const transformed = items.map((p) => ({
-      id: p.user.id,
-      fullName: p.user.fullName,
-      email: p.user.email,
-      enrolledCourse: p.course.title,
-      progress: 0,
-      joinedAt: p.purchasedAt,
-    }));
+
+    // Tính tiến độ cho từng item
+    const transformedWithProgress = await Promise.all(
+      items.map(async (p) => {
+        // Đếm tổng số bài học của khóa học
+        const totalLessons = await this.prisma.lesson.count({
+          where: { courseId: p.course.id },
+        });
+        // Đếm số bài học đã hoàn thành của học viên trong khóa học này
+        const completedLessons = await this.prisma.learningProgress.count({
+          where: {
+            userId: p.user.id,
+            courseId: p.course.id,
+            status: 'COMPLETED',
+          },
+        });
+        const progress =
+          totalLessons > 0
+            ? Math.round((completedLessons / totalLessons) * 100)
+            : 0;
+
+        return {
+          id: p.user.id,
+          fullName: p.user.fullName,
+          email: p.user.email,
+          enrolledCourse: p.course.title,
+          progress: progress,
+          joinedAt: p.purchasedAt,
+        };
+      }),
+    );
+
     return {
-      data: transformed,
+      data: transformedWithProgress,
       total,
       page,
       limit,
@@ -917,9 +1041,15 @@ export class CourseService {
     };
   }
 
-  async getCourseStudents(teacherId: string, courseId: string) {
+  async getCourseStudents(
+    teacherId: string,
+    courseId: string,
+    bypassOwnership = false,
+  ) {
     const course = await this.prisma.course.findFirst({
-      where: { id: courseId, instructorId: teacherId },
+      where: bypassOwnership
+        ? { id: courseId }
+        : { id: courseId, instructorId: teacherId },
     });
     if (!course)
       throw new ForbiddenException('Bạn không phải chủ sở hữu khóa học');

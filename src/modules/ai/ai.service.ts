@@ -22,15 +22,20 @@ export class AiService {
 
   private async generateJson(prompt: string): Promise<any> {
     this.logger.log('Mocking AI response (AI features disabled for local dev)');
-    
+
     // Check if it's an outline request
     if (prompt.includes('Tạo outline')) {
       return [
-        { title: "Chương 1: Giới thiệu (Mock)", lessons: ["Bài 1: Tổng quan", "Bài 2: Cài đặt"] },
-        { title: "Chương 2: Cơ bản (Mock)", lessons: ["Bài 3: Hello World", "Bài 4: Biến và Kiểu dữ liệu"] }
+        {
+          title: 'Chương 1: Giới thiệu (Mock)',
+          lessons: ['Bài 1: Tổng quan', 'Bài 2: Cài đặt'],
+        },
+        {
+          title: 'Chương 2: Cơ bản (Mock)',
+          lessons: ['Bài 3: Hello World', 'Bài 4: Biến và Kiểu dữ liệu'],
+        },
       ];
     }
-    
     // Check if it's a quiz request
     if (prompt.includes('tự luận') || prompt.includes('trắc nghiệm')) {
       const isEssay = prompt.includes('tự luận');
@@ -44,7 +49,10 @@ export class AiService {
     }
 
     // Default mock response
-    return [{ courseTitle: "Khóa học Mock 1" }, { courseTitle: "Khóa học Mock 2" }];
+    return [
+      { courseTitle: 'Khóa học Mock 1' },
+      { courseTitle: 'Khóa học Mock 2' },
+    ];
   }
 
   async generateOutline(courseTitle: string, description?: string) {

@@ -48,6 +48,7 @@ import { getUserNameMap } from '@/modules/common/utils/get-user-names';
 import { EntityManager } from 'typeorm';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { CourseStatus } from '@prisma/client';
+import { User } from '../../users/entities/user.entity';
 
 @Controller('courses')
 export class CourseController {
@@ -278,22 +279,24 @@ export class TeacherCourseController {
     @Param('studentId') studentId: string,
     @Request() req,
   ) {
-    const student = await this.prisma.user.findUnique({
+    // Lấy user từ TypeORM
+    const student = await this.entityManager.findOne(User, {
       where: { id: studentId },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        avatarUrl: true,
-        purchases: {
-          where: { course: { instructorId: req.user.sub } },
-          include: { course: true },
-        },
-      },
+      select: ['id', 'fullName', 'email', 'avatarUrl'],
     });
     if (!student) throw new NotFoundException('Không tìm thấy học viên');
+
+    // Lấy purchases từ Prisma
+    const purchases = await this.prisma.purchase.findMany({
+      where: {
+        userId: studentId,
+        course: { instructorId: req.user.sub },
+      },
+      include: { course: true },
+    });
+
     const courseProgress = await Promise.all(
-      student.purchases.map(async (p) => {
+      purchases.map(async (p) => {
         const totalLessons = await this.prisma.lesson.count({
           where: { courseId: p.courseId },
         });
@@ -318,10 +321,11 @@ export class TeacherCourseController {
         };
       }),
     );
+
     return {
       ...student,
-      enrolledAt: student.purchases[0]?.purchasedAt,
-      coursesEnrolled: student.purchases.length,
+      enrolledAt: purchases[0]?.purchasedAt,
+      coursesEnrolled: purchases.length,
       courseProgress,
     };
   }
@@ -582,12 +586,14 @@ export class TeacherCourseController {
     @Request() req,
     @Body('studentId') studentId: string,
   ) {
+    // 1. Kiểm tra khóa học thuộc về teacher
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, instructorId: req.user.sub },
     });
     if (!course)
       throw new ForbiddenException('Bạn không phải chủ sở hữu khóa học');
-    // Kiểm tra học viên đã hoàn thành khóa học
+
+    // 2. Kiểm tra học viên đã hoàn thành khóa học
     const totalLessons = await this.prisma.lesson.count({
       where: { courseId },
     });
@@ -597,14 +603,24 @@ export class TeacherCourseController {
     if (completed < totalLessons) {
       throw new BadRequestException('Học viên chưa hoàn thành khóa học');
     }
+
+    // 3. Kiểm tra chứng chỉ đã tồn tại
     const existing = await this.prisma.certificate.findUnique({
       where: { userId_courseId: { userId: studentId, courseId } },
     });
     if (existing) throw new ConflictException('Học viên đã có chứng chỉ này');
-    const student = await this.prisma.user.findUnique({
+
+    // 4. Lấy thông tin học viên từ TypeORM (thay vì prisma.user)
+    const student = await this.entityManager.findOne(User, {
       where: { id: studentId },
+      select: ['fullName'],
     });
+    if (!student) throw new NotFoundException('Không tìm thấy học viên');
+
+    // 5. Tạo URL chứng chỉ (có thể dùng thật nếu tích hợp PDF generator)
     const certificateUrl = `https://example.com/certificates/${courseId}-${studentId}.pdf`;
+
+    // 6. Lưu chứng chỉ
     return this.prisma.certificate.create({
       data: {
         userId: studentId,
@@ -754,6 +770,11 @@ export class AdminCourseController {
   @Get(':id/admin-detail')
   async getAdminDetail(@Param('id') id: string) {
     return this.courseService.getCourseDetailWithFullContent(id);
+  }
+
+  @Get(':id/students')
+  async getCourseStudents(@Param('id') courseId: string) {
+    return this.courseService.getCourseStudents('', courseId, true);
   }
 
   @Get(':id/reviews')

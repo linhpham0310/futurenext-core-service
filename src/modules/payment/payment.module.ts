@@ -6,10 +6,15 @@ import { PaymentSettingsService } from './payment-settings.service';
 import { PaymentSettingsController } from './payment-settings.controller';
 import { VnpayService } from './vnpay.service';
 import { QrService } from './qr.service';
+import { TeacherPaymentController } from './teacher-payment.controller';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [PaymentController, PaymentSettingsController],
+  controllers: [
+    PaymentController,
+    PaymentSettingsController,
+    TeacherPaymentController,
+  ],
   providers: [PaymentService, PaymentSettingsService, VnpayService, QrService],
   exports: [PaymentService],
 })

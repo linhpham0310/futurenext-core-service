@@ -1,10 +1,20 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import Stripe from 'stripe';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
+import { InjectEntityManager } from '@nestjs/typeorm';
+import { EntityManager, In } from 'typeorm';
 import { VnpayService } from './vnpay.service';
 import { QrService } from './qr.service';
+import { CreatePaymentAccountDto } from './dto/create-payment-account.dto';
+import { CreateWithdrawalRequestDto } from './dto/create-withdrawal-request.dto';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class PaymentService {
@@ -16,10 +26,10 @@ export class PaymentService {
     private prisma: PrismaService,
     private vnpayService: VnpayService,
     private qrService: QrService,
+    @InjectEntityManager() private entityManager: EntityManager,
   ) {
     this.logger.log('PaymentService initialized in MOCK mode');
   }
-
   async createCheckoutUrl(
     method: 'STRIPE' | 'VNPAY' | 'QR',
     orderCode: string,
@@ -27,14 +37,15 @@ export class PaymentService {
     title: string,
   ): Promise<{ paymentUrl: string | null; qrDataUrl: string | null }> {
     this.logger.log(`Mocking payment for order ${orderCode} via ${method}`);
-    
+
     // Auto-confirm order for local development
     await this.confirmOrder(orderCode, 'MOCK_PAYMENT', 'mock_txn_id');
-    
+
     // Return a URL that redirects back to the frontend success page
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3001';
+    const frontendUrl =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3001';
     const mockUrl = `${frontendUrl}/orders?payment=success`;
-    
+
     return { paymentUrl: mockUrl, qrDataUrl: null };
   }
 
@@ -166,5 +177,363 @@ export class PaymentService {
     }
 
     this.logger.log(`Order ${orderCode} confirmed with ${paymentMethod}`);
+  }
+
+  // ===== TEACHER PAYMENT ACCOUNTS =====
+  async getTeacherAccounts(teacherId: string) {
+    return this.prisma.paymentAccount.findMany({
+      where: { teacherId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createPaymentAccount(teacherId: string, dto: CreatePaymentAccountDto) {
+    const count = await this.prisma.paymentAccount.count({
+      where: { teacherId },
+    });
+    const isDefault = count === 0; // tài khoản đầu tiên là mặc định
+    return this.prisma.paymentAccount.create({
+      data: {
+        teacherId,
+        type: dto.type,
+        bankName: dto.bankName,
+        accountNumber: dto.accountNumber,
+        accountHolder: dto.accountHolder,
+        isDefault,
+      },
+    });
+  }
+
+  async deletePaymentAccount(teacherId: string, accountId: string) {
+    const account = await this.prisma.paymentAccount.findFirst({
+      where: { id: accountId, teacherId },
+    });
+    if (!account) throw new NotFoundException('Không tìm thấy tài khoản');
+    if (account.isDefault) {
+      throw new BadRequestException('Không thể xóa tài khoản mặc định');
+    }
+    return this.prisma.paymentAccount.delete({ where: { id: accountId } });
+  }
+
+  async setDefaultAccount(teacherId: string, accountId: string) {
+    await this.prisma.$transaction([
+      this.prisma.paymentAccount.updateMany({
+        where: { teacherId, isDefault: true },
+        data: { isDefault: false },
+      }),
+      this.prisma.paymentAccount.update({
+        where: { id: accountId, teacherId },
+        data: { isDefault: true },
+      }),
+    ]);
+    return { success: true };
+  }
+
+  // ===== WITHDRAWALS =====
+  async createWithdrawalRequest(
+    teacherId: string,
+    dto: CreateWithdrawalRequestDto,
+  ) {
+    const account = await this.prisma.paymentAccount.findFirst({
+      where: { id: dto.accountId, teacherId },
+    });
+    if (!account)
+      throw new NotFoundException('Tài khoản nhận tiền không hợp lệ');
+
+    // Kiểm tra số dư khả dụng
+    const balance = await this.getTeacherBalance(teacherId);
+    if (dto.amount > balance) throw new BadRequestException('Số dư không đủ');
+
+    return this.prisma.withdrawalRequest.create({
+      data: {
+        teacherId,
+        accountId: dto.accountId,
+        amount: dto.amount,
+        status: 'PENDING',
+        bankName: account.bankName,
+        accountNumber: account.accountNumber,
+        accountHolder: account.accountHolder,
+        requestedAt: new Date(),
+      },
+    });
+  }
+
+  async getTeacherWithdrawals(
+    teacherId: string,
+    query: { page: number; limit: number },
+  ) {
+    const { page, limit } = query;
+    const skip = (page - 1) * limit;
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.withdrawalRequest.findMany({
+        where: { teacherId },
+        skip,
+        take: limit,
+        orderBy: { requestedAt: 'desc' },
+      }),
+      this.prisma.withdrawalRequest.count({ where: { teacherId } }),
+    ]);
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  // Hàm getTeacherBalance (đã có hoặc cần thêm)
+  async getTeacherBalance(teacherId: string): Promise<number> {
+    // Tính tổng doanh thu - tổng đã rút - tổng đang xử lý
+    const totalRevenue = await this.prisma.revenueTransaction.aggregate({
+      _sum: { amount: true },
+      where: { teacherId, status: 'SUCCESS' },
+    });
+    const revenue = Number(totalRevenue._sum.amount) || 0;
+
+    const withdrawn = await this.prisma.withdrawalRequest.aggregate({
+      _sum: { amount: true },
+      where: { teacherId, status: { in: ['PROCESSING', 'COMPLETED'] } },
+    });
+    const withdrawnAmount = Number(withdrawn._sum.amount) || 0;
+
+    const pending = await this.prisma.withdrawalRequest.aggregate({
+      _sum: { amount: true },
+      where: { teacherId, status: 'PENDING' },
+    });
+    const pendingAmount = Number(pending._sum.amount) || 0;
+
+    return revenue - withdrawnAmount - pendingAmount;
+  }
+
+  // ===== ADMIN METHODS =====
+  async getAdminOverview() {
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstDayOfPrevMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    );
+
+    const revenueThisMonth = await this.prisma.purchase.aggregate({
+      _sum: { amount: true },
+      where: { status: 'COMPLETED', purchasedAt: { gte: firstDayOfMonth } },
+    });
+    const totalRevenue = Number(revenueThisMonth._sum.amount) || 0;
+
+    const revenuePrevMonth = await this.prisma.purchase.aggregate({
+      _sum: { amount: true },
+      where: {
+        status: 'COMPLETED',
+        purchasedAt: { gte: firstDayOfPrevMonth, lt: firstDayOfMonth },
+      },
+    });
+    const prevRevenue = Number(revenuePrevMonth._sum.amount) || 0;
+    const growthPercent =
+      prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0;
+
+    const txCount = await this.prisma.purchase.count({
+      where: { status: 'COMPLETED', purchasedAt: { gte: firstDayOfMonth } },
+    });
+    const prevTxCount = await this.prisma.purchase.count({
+      where: {
+        status: 'COMPLETED',
+        purchasedAt: { gte: firstDayOfPrevMonth, lt: firstDayOfMonth },
+      },
+    });
+    const txGrowth =
+      prevTxCount > 0 ? ((txCount - prevTxCount) / prevTxCount) * 100 : 0;
+
+    const pendingWithdrawals = await this.prisma.withdrawalRequest.findMany({
+      where: { status: 'PENDING' },
+    });
+    const pendingPayouts = pendingWithdrawals.reduce(
+      (sum, w) => sum + Number(w.amount),
+      0,
+    );
+    const pendingCount = pendingWithdrawals.length;
+
+    const totalOrders = await this.prisma.purchase.count({
+      where: { status: 'COMPLETED' },
+    });
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    const prevAvgOrder =
+      prevRevenue > 0 && prevTxCount > 0 ? prevRevenue / prevTxCount : 0;
+    const aovGrowth =
+      prevAvgOrder > 0
+        ? ((avgOrderValue - prevAvgOrder) / prevAvgOrder) * 100
+        : 0;
+
+    return {
+      totalRevenue: Math.round(totalRevenue),
+      growthPercent: Math.round(growthPercent),
+      transactions: txCount,
+      transactionGrowth: Math.round(txGrowth),
+      pendingPayouts: Math.round(pendingPayouts),
+      pendingCount,
+      averageOrderValue: Math.round(avgOrderValue),
+      aovGrowth: Math.round(aovGrowth),
+    };
+  }
+
+  async getMonthlyRevenue(year?: number) {
+    const currentYear = year || new Date().getFullYear();
+    const result: { month: string; revenue: number }[] = [];
+    for (let m = 1; m <= 12; m++) {
+      const start = new Date(currentYear, m - 1, 1);
+      const end = new Date(currentYear, m, 1);
+      const revenue = await this.prisma.purchase.aggregate({
+        _sum: { amount: true },
+        where: { status: 'COMPLETED', purchasedAt: { gte: start, lt: end } },
+      });
+      const value = Number(revenue._sum.amount) || 0;
+      result.push({ month: `T${m}`, revenue: Math.round(value / 1000000) });
+    }
+    return result;
+  }
+
+  async getAdminTransactions(query: any) {
+    const { page = 1, limit = 10, q, status } = query;
+    const skip = (page - 1) * limit;
+    const where: any = {};
+    if (status) where.status = { in: status.split(',') };
+    if (q) {
+      where.OR = [
+        { orderCode: { contains: q, mode: 'insensitive' } },
+        { course: { title: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.purchase.findMany({
+        where,
+        include: {
+          course: { select: { title: true } },
+        },
+        skip,
+        take: +limit,
+        orderBy: { purchasedAt: 'desc' },
+      }),
+      this.prisma.purchase.count({ where }),
+    ]);
+
+    const userIds = [...new Set(items.map((p) => p.userId))];
+    const users = userIds.length
+      ? await this.entityManager.find(User, {
+          where: { id: In(userIds) },
+          select: ['id', 'fullName'],
+        })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u.fullName]));
+
+    const mapped = items.map((p) => ({
+      id: p.id,
+      code: p.orderCode || `TXN-${p.id.slice(0, 8)}`,
+      studentName: userMap.get(p.userId) || 'Unknown',
+      courseTitle: p.course.title,
+      amount: Number(p.amount),
+      paymentMethod: p.paymentMethod || 'Không rõ',
+      status: p.status,
+      createdAt: p.purchasedAt,
+    }));
+    return {
+      items: mapped,
+      total,
+      page: +page,
+      limit: +limit,
+      totalPages: Math.ceil(total / +limit),
+    };
+  }
+
+  async getWithdrawalRequests(query: any) {
+    const { page = 1, limit = 10, status } = query;
+    const skip = (page - 1) * limit;
+    const where: any = {};
+    if (status) where.status = { in: status.split(',') };
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.withdrawalRequest.findMany({
+        where,
+        skip,
+        take: +limit,
+        orderBy: { requestedAt: 'desc' },
+      }),
+      this.prisma.withdrawalRequest.count({ where }),
+    ]);
+
+    const teacherIds = [...new Set(items.map((w) => w.teacherId))];
+    const teachers = teacherIds.length
+      ? await this.entityManager.find(User, {
+          where: { id: In(teacherIds) },
+          select: ['id', 'fullName'],
+        })
+      : [];
+    const teacherMap = new Map(teachers.map((t) => [t.id, t.fullName]));
+
+    const mapped = await Promise.all(
+      items.map(async (w) => {
+        const courseCount = await this.prisma.course.count({
+          where: { instructorId: w.teacherId },
+        });
+        const studentCount = await this.prisma.purchase.count({
+          where: {
+            course: { instructorId: w.teacherId },
+            status: 'COMPLETED',
+          },
+          distinct: ['userId'],
+        });
+        return {
+          id: w.id,
+          teacherId: w.teacherId,
+          teacherName: teacherMap.get(w.teacherId) || 'Unknown',
+          bankName: w.bankName || '',
+          accountNumber: w.accountNumber || '',
+          amount: Number(w.amount),
+          status: w.status,
+          requestedAt: w.requestedAt,
+          courseCount,
+          studentCount,
+        };
+      }),
+    );
+
+    return {
+      items: mapped,
+      total,
+      page: +page,
+      limit: +limit,
+      totalPages: Math.ceil(total / +limit),
+    };
+  }
+
+  async approveWithdrawal(requestId: string, adminId: string) {
+    const request = await this.prisma.withdrawalRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request) throw new NotFoundException('Yêu cầu không tồn tại');
+    if (request.status !== 'PENDING')
+      throw new BadRequestException('Yêu cầu đã được xử lý');
+
+    return this.prisma.withdrawalRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'PROCESSING',
+        processedAt: new Date(),
+        processedBy: adminId,
+      },
+    });
+  }
+
+  async rejectWithdrawal(requestId: string, adminId: string, reason: string) {
+    const request = await this.prisma.withdrawalRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request) throw new NotFoundException('Yêu cầu không tồn tại');
+    if (request.status !== 'PENDING')
+      throw new BadRequestException('Yêu cầu đã được xử lý');
+
+    return this.prisma.withdrawalRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'REJECTED',
+        processedAt: new Date(),
+        processedBy: adminId,
+        rejectionReason: reason,
+      },
+    });
   }
 }
