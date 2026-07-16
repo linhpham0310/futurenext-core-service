@@ -522,3 +522,44 @@ model Question {
   @@index([courseId])
   @@schema("public")
 }
+
+model PaymentAccount {
+  id            String   @id @default(uuid()) @db.Uuid
+  teacherId     String   @db.Uuid
+  type          String   @default("BANK") // BANK | MOMO | ZALOPAY | VNPAY
+  bankName      String?
+  accountNumber String
+  accountHolder String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, accountNumber])
+  @@schema("public")
+  @@map("payment_accounts")
+}
+
+model WithdrawalRequest {
+  id              String   @id @default(uuid()) @db.Uuid
+  teacherId       String   @db.Uuid
+  accountId       String   @db.Uuid
+  amount          Decimal  @db.Decimal(12,2)
+  status          String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | REJECTED
+  bankName        String?
+  accountNumber   String?
+  accountHolder   String?
+  requestedAt     DateTime @default(now())
+  processedAt     DateTime?
+  processedBy     String?  @db.Uuid
+  rejectionReason String?  @db.Text
+
+  teacher  User @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  account  PaymentAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@index([status])
+  @@schema("public")
+  @@map("withdrawal_requests")
+}

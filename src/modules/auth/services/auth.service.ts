@@ -425,7 +425,10 @@ export class AuthService {
         },
       });
       for (const session of sessions) {
-        const isMatch = await this.hashingService.compare(plainToken, session.refreshTokenHash);
+        const isMatch = await this.hashingService.compare(
+          plainToken,
+          session.refreshTokenHash,
+        );
         if (isMatch) {
           session.revokedAt = new Date();
           await txManager.save(session);
@@ -449,7 +452,10 @@ export class AuthService {
     userId: string,
     oldRefreshToken: string,
   ): Promise<{ newAccessToken: string; newRefreshToken: string }> {
-    const revokedSession = await this.findAndRevokeSession(oldRefreshToken, userId);
+    const revokedSession = await this.findAndRevokeSession(
+      oldRefreshToken,
+      userId,
+    );
     if (!revokedSession) {
       await this.revokeAllUserSessions(userId);
       this.auditService.log({
