@@ -394,45 +394,24 @@ export class CourseService {
     const skip = (pageNum - 1) * limitNum;
     const where: any = { status: 'APPROVED' };
 
-    // Tìm kiếm
     if (q) {
       where.OR = [
         { title: { contains: q, mode: 'insensitive' } },
         { description: { contains: q, mode: 'insensitive' } },
       ];
     }
-
-    // Filter theo category
-    if (category) {
-      where.categoryId = category;
-    }
-
-    // Filter theo level
-    if (level) {
-      where.level = level;
-    }
-
-    // Filter theo giá
+    if (category) where.categoryId = category;
+    if (level) where.level = level;
     if (minPrice !== undefined || maxPrice !== undefined) {
       where.price = {};
       if (minPrice !== undefined) where.price.gte = Number(minPrice);
       if (maxPrice !== undefined) where.price.lte = Number(maxPrice);
     }
 
-    // Filter theo rating (tối thiểu) — placeholder, chưa triển khai
-    if (rating) {
-      // TODO: cần tính rating trung bình từ reviews hoặc thêm field vào schema
-    }
-
-    // Sắp xếp
-    // Lưu ý: Course model không có field `students`/`rating` trực tiếp (đều là giá trị tính toán),
-    // nên không thể orderBy trực tiếp qua Prisma. Tạm thời fallback về createdAt để tránh lỗi 500;
-    // muốn sort đúng theo popular/trending cần tính toán riêng (raw query hoặc sort ở tầng application).
     let orderBy: any = { createdAt: 'desc' };
     if (sortBy === 'newest') {
       orderBy = { createdAt: 'desc' };
     }
-    // 'popular' và 'trending' tạm thời dùng chung createdAt, xử lý đúng ở bước sau nếu cần
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.course.findMany({
@@ -441,9 +420,6 @@ export class CourseService {
         take: limitNum,
         orderBy,
         include: {
-          instructor: {
-            select: { id: true, fullName: true, email: true, avatarUrl: true },
-          },
           category: true,
           _count: { select: { purchases: true } },
         },
@@ -451,11 +427,25 @@ export class CourseService {
       this.prisma.course.count({ where }),
     ]);
 
-    // Map dữ liệu
+    // Lấy instructor qua TypeORM, đúng pattern dual-ORM
+    const instructorIds = [...new Set(items.map((c) => c.instructorId))];
+    const instructors = instructorIds.length
+      ? await this.entityManager.find(User, {
+          where: { id: In(instructorIds) },
+          select: ['id', 'fullName', 'email', 'avatarUrl'],
+        })
+      : [];
+    const instructorMap = new Map(instructors.map((u) => [u.id, u]));
+
     const mapped = items.map((course) => ({
       ...course,
       students: course._count.purchases,
-      instructor: course.instructor,
+      instructor: instructorMap.get(course.instructorId) || {
+        id: course.instructorId,
+        fullName: 'Unknown',
+        email: '',
+        avatarUrl: null,
+      },
     }));
 
     return {
