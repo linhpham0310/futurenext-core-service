@@ -52,7 +52,7 @@
     "@prisma/adapter-pg": "^5.22.0",
     "@prisma/client": "^5.22.0",
     "@react-pdf/renderer": "^4.5.1",
-    "@supabase/supabase-js": "^2.107.0",
+    "@supabase/supabase-js": "^2.109.0",
     "@types/crypto-js": "^4.2.2",
     "@types/pdfmake": "^0.3.3",
     "@upstash/redis": "^1.35.6",

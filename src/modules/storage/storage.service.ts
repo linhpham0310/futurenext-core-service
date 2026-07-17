@@ -1,22 +1,25 @@
-// src/modules/storage/storage.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  private readonly uploadDir = path.join(
-    process.cwd(),
-    'public',
-    'uploads',
-    'certificates',
-  );
+  private readonly supabaseClient: SupabaseClient;
+  private readonly bucket = 'certificates';
 
-  constructor() {
-    if (!fs.existsSync(this.uploadDir)) {
-      fs.mkdirSync(this.uploadDir, { recursive: true });
-    }
+  constructor(private configService: ConfigService) {
+    const url = this.configService.getOrThrow<string>('SUPABASE_URL');
+    const serviceKey = this.configService.getOrThrow<string>(
+      'SUPABASE_SERVICE_ROLE_KEY',
+    );
+    this.supabaseClient = createClient(url, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
   }
 
   async uploadFile(
@@ -24,16 +27,18 @@ export class StorageService {
     fileName: string,
     contentType: string,
   ): Promise<string> {
-    try {
-      const fullPath = path.join(this.uploadDir, fileName);
-      fs.writeFileSync(fullPath, buffer);
+    const { error } = await this.supabaseClient.storage
+      .from(this.bucket)
+      .upload(fileName, buffer, { contentType, upsert: true });
 
-      return `http://localhost:3000/uploads/certificates/${fileName}`;
-    } catch (error) {
-      this.logger.error(
-        `Failed to upload certificate locally: ${error.message}`,
-      );
-      throw error;
+    if (error) {
+      this.logger.error(`Failed to upload certificate: ${error.message}`);
+      throw new InternalServerErrorException('Upload chứng chỉ thất bại');
     }
+
+    const { data } = this.supabaseClient.storage
+      .from(this.bucket)
+      .getPublicUrl(fileName);
+    return data.publicUrl;
   }
 }

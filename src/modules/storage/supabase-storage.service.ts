@@ -1,23 +1,43 @@
-import { Injectable, Logger } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class SupabaseStorageService {
   private readonly logger = new Logger(SupabaseStorageService.name);
-  private readonly uploadDir = path.join(process.cwd(), 'public', 'uploads');
+  private readonly supabaseClient: SupabaseClient;
+  private readonly bucket: string;
 
-  constructor() {
-    // Ensure upload directory exists
-    if (!fs.existsSync(this.uploadDir)) {
-      fs.mkdirSync(this.uploadDir, { recursive: true });
-    }
+  constructor(private configService: ConfigService) {
+    const url = this.configService.getOrThrow<string>('SUPABASE_URL');
+    const serviceKey = this.configService.getOrThrow<string>(
+      'SUPABASE_SERVICE_ROLE_KEY',
+    );
+    this.bucket = this.configService.get<string>(
+      'SUPABASE_STORAGE_BUCKET',
+      'course-uploads',
+    );
+
+    this.supabaseClient = createClient(url, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
   }
 
   async createSignedUploadUrl(fileKey: string) {
-    // Mock signed URL for local development
-    const mockUrl = `http://localhost:3000/api/mock-upload?key=${fileKey}`;
-    return { uploadUrl: mockUrl, fileKey };
+    const { data, error } = await this.supabaseClient.storage
+      .from(this.bucket)
+      .createSignedUploadUrl(fileKey);
+
+    if (error) {
+      this.logger.error(`Failed to create signed upload URL: ${error.message}`);
+      throw new InternalServerErrorException('Không thể tạo URL upload');
+    }
+
+    return { uploadUrl: data.signedUrl, fileKey, token: data.token };
   }
 
   async uploadFile(
@@ -25,35 +45,29 @@ export class SupabaseStorageService {
     filePath: string,
     contentType: string,
   ): Promise<string> {
-    try {
-      // Create subdirectories if filePath contains them (e.g., 'avatars/user1.png')
-      const fullPath = path.join(this.uploadDir, filePath);
-      const dir = path.dirname(fullPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
+    const { error } = await this.supabaseClient.storage
+      .from(this.bucket)
+      .upload(filePath, buffer, { contentType, upsert: true });
 
-      fs.writeFileSync(fullPath, buffer);
-
-      // Return the public URL to access the file
-      // NestJS static assets should serve 'public' folder
-      return `http://localhost:3000/uploads/${filePath}`;
-    } catch (error) {
-      this.logger.error(`Failed to upload local file: ${error.message}`);
-      throw error;
+    if (error) {
+      this.logger.error(`Failed to upload file: ${error.message}`);
+      throw new InternalServerErrorException('Upload thất bại');
     }
+
+    const { data } = this.supabaseClient.storage
+      .from(this.bucket)
+      .getPublicUrl(filePath);
+    return data.publicUrl;
   }
 
   async deleteFile(fileKey: string) {
-    try {
-      const fullPath = path.join(this.uploadDir, fileKey);
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
-      }
-      return { success: true };
-    } catch (error) {
-      this.logger.error(`Failed to delete local file: ${error.message}`);
-      throw error;
+    const { error } = await this.supabaseClient.storage
+      .from(this.bucket)
+      .remove([fileKey]);
+    if (error) {
+      this.logger.error(`Failed to delete file: ${error.message}`);
+      throw new InternalServerErrorException('Xóa file thất bại');
     }
+    return { success: true };
   }
 }
