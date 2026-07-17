@@ -138,8 +138,7 @@ describe('TeacherProfilesService', () => {
   // =========================================================================
   describe('updateProfile', () => {
     const userId = 'user-123';
-    const dto = { bio: 'Updated Bio' };
-
+    const dto = { bio: 'Updated Bio', expertise: ['NodeJS'] };
     it('should create new profile if not exists', async () => {
       mockTeacherProfileRepo.findOne.mockResolvedValue(null);
 
