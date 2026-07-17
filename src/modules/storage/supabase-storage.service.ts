@@ -44,16 +44,16 @@ export class SupabaseStorageService {
             public: true,
           });
         if (createError) {
+          // 👉 THROW lỗi thay vì chỉ log
           throw new Error(`Failed to create bucket: ${createError.message}`);
         }
         this.logger.log(`Bucket "${bucket}" created successfully.`);
       } else if (listError) {
         throw new Error(`Bucket check failed: ${listError.message}`);
-      } else {
-        this.logger.log(`Bucket "${bucket}" exists.`);
       }
     } catch (error) {
       this.logger.error(`Error ensuring bucket exists: ${error.message}`);
+      throw error; // Re-throw để dừng upload
     }
   }
 
@@ -82,14 +82,21 @@ export class SupabaseStorageService {
     bucket: string,
   ): Promise<string> {
     try {
-      await this.ensureBucketExists(bucket);
       const { error } = await this.supabaseClient.storage
         .from(bucket)
         .upload(filePath, buffer, { contentType, upsert: true });
 
       if (error) {
-        this.logger.error(`Failed to upload file: ${error.message}`);
-        throw new InternalServerErrorException('Upload thất bại');
+        // Log chi tiết lỗi để biết chính xác
+        console.error('Supabase upload error:', {
+          message: error.message,
+          status: error.status,
+          bucket,
+          filePath,
+        });
+        throw new InternalServerErrorException(
+          `Upload thất bại: ${error.message}`,
+        );
       }
 
       const { data } = this.supabaseClient.storage

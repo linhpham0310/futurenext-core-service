@@ -17,6 +17,9 @@ export class StorageService {
     const serviceKey = this.configService.getOrThrow<string>(
       'SUPABASE_SERVICE_ROLE_KEY',
     );
+    console.log('Supabase URL:', url);
+    console.log('Service key starts with:', serviceKey.substring(0, 10));
+
     this.supabaseClient = createClient(url, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });

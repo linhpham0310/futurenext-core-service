@@ -266,34 +266,23 @@ export class CourseService {
           orderBy: { orderIndex: 'asc' },
           include: { lessons: { orderBy: { orderIndex: 'asc' } } },
         },
-        reviews: {
-          orderBy: { createdAt: 'desc' },
-        },
+        reviews: { orderBy: { createdAt: 'desc' } },
         _count: { select: { purchases: true } },
-        // ===== THÊM VÀO ĐÂY =====
-        instructor: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            avatarUrl: true,
-            // Nếu có thêm trường thì thêm vào
-            bio: true,
-            title: true,
-          },
-        },
         learningOutcomes: {
           orderBy: { orderIndex: 'asc' },
-          select: {
-            id: true,
-            title: true,
-            description: true,
-          },
+          select: { id: true, title: true, description: true },
         },
       },
     });
     if (!course) throw new NotFoundException('Không tìm thấy khóa học');
 
+    // Lấy instructor bằng TypeORM
+    const instructor = await this.entityManager.findOne(User, {
+      where: { id: course.instructorId },
+      select: ['id', 'fullName', 'email', 'avatarUrl', 'bio', 'title'],
+    });
+
+    // Kiểm tra đã đăng ký chưa
     let isEnrolled = false;
     let progress = 0;
     if (userId) {
@@ -313,16 +302,25 @@ export class CourseService {
       }
     }
 
+    // Tính rating
+    const avgRating =
+      course.reviews.length > 0
+        ? course.reviews.reduce((sum, r) => sum + r.rating, 0) /
+          course.reviews.length
+        : 0;
+
+    // Tổng thời lượng
     const totalDuration = course.sections
       .flatMap((s) => s.lessons)
       .reduce((sum, l) => sum + (l.duration || 0), 0);
 
-    // Lấy câu hỏi (nếu có)
+    // Lấy danh sách câu hỏi (có trả lời)
     const questions = await this.prisma.question.findMany({
       where: { courseId, answer: { not: null } },
       orderBy: { createdAt: 'desc' },
     });
 
+    // Gộp user names cho reviews và questions
     const reviewUserIds = course.reviews.map((r) => r.userId);
     const questionUserIds = questions.map((q) => q.userId);
     const allUserIds = [...new Set([...reviewUserIds, ...questionUserIds])];
@@ -334,45 +332,33 @@ export class CourseService {
       : [];
     const userMap = new Map(users.map((u) => [u.id, u]));
 
-    const reviewsWithUser = course.reviews.map((r) => {
-      const user = userMap.get(r.userId);
-      return {
-        ...r,
-        user: { fullName: user?.fullName ?? 'Unknown' },
-      };
-    });
+    const reviewsWithUser = course.reviews.map((r) => ({
+      ...r,
+      user: { fullName: userMap.get(r.userId)?.fullName ?? 'Unknown' },
+    }));
 
-    const questionsWithUser = questions.map((q) => {
-      const user = userMap.get(q.userId);
-      return {
-        ...q,
-        user: { fullName: user?.fullName ?? 'Unknown' },
-      };
-    });
+    const questionsWithUser = questions.map((q) => ({
+      ...q,
+      user: { fullName: userMap.get(q.userId)?.fullName ?? 'Unknown' },
+    }));
 
-    // Lấy outcomes từ learningOutcomes (ưu tiên)
-    const outcomesFromLearning = course.learningOutcomes.map((lo) => lo.title);
-    // Nếu course.outcomes đã có (kiểu string[]), dùng nó, ngược lại dùng từ learningOutcomes
+    // Lấy outcomes
     const outcomes =
       (course.outcomes as string[])?.length > 0
         ? (course.outcomes as string[])
-        : outcomesFromLearning;
+        : course.learningOutcomes.map((lo) => lo.title);
 
     return {
       ...course,
       students: course._count.purchases,
       duration: `${Math.round(totalDuration / 60)} giờ`,
-      rating:
-        course.reviews.length > 0
-          ? course.reviews.reduce((sum, r) => sum + r.rating, 0) /
-            course.reviews.length
-          : 0,
+      rating: avgRating,
       outcomes,
       isEnrolled,
       progress,
       reviews: reviewsWithUser,
       questions: questionsWithUser,
-      instructor: course.instructor, // ← thêm
+      instructor, // đã có
     };
   }
 
