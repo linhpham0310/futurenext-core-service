@@ -279,7 +279,7 @@ export class CourseService {
     // Lấy instructor bằng TypeORM
     const instructor = await this.entityManager.findOne(User, {
       where: { id: course.instructorId },
-      select: ['id', 'fullName', 'email', 'avatarUrl', 'bio', 'title'],
+      select: ['id', 'fullName', 'email', 'avatarUrl', 'bio'],
     });
 
     // Kiểm tra đã đăng ký chưa

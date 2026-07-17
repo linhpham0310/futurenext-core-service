@@ -437,7 +437,6 @@ export class PaymentService {
       limit: +limit,
       totalPages: Math.ceil(total / +limit),
     };
-    s;
   }
 
   async getWithdrawalRequests(query: any) {
