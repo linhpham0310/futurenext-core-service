@@ -49,16 +49,16 @@ export class CourseService {
     fileName: string,
     fileType: string,
   ) {
-    // Kiểm tra khóa học tồn tại (tuỳ chọn)
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       select: { id: true },
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
-    // Tạo key theo cấu trúc: courses/{courseId}/{timestamp}-{sanitizedFileName}
+
     const sanitized = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const fileKey = `courses/${courseId}/${Date.now()}-${sanitized}`;
-    return this.supabaseStorage.createSignedUploadUrl(fileKey);
+    // Upload video vào bucket "course-videos"
+    return this.supabaseStorage.createSignedUploadUrl(fileKey, 'course-videos');
   }
 
   /**

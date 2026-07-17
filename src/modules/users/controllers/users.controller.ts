@@ -90,18 +90,16 @@ export class UsersController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     const userId = req.user.sub;
-    // Tạo tên file duy nhất
     const fileExt = file.originalname.split('.').pop();
-    const fileName = `avatars/${userId}/${Date.now()}.${fileExt}`;
+    const fileName = `${userId}/${Date.now()}.${fileExt}`;
 
-    // Upload lên Supabase
-    const publicUrl = await this.storage.uploadFile(
+    // Upload lên bucket "avatars"
+    const publicUrl = await this.storage.uploadAvatar(
       file.buffer,
       fileName,
       file.mimetype,
     );
 
-    // Cập nhật avatarUrl cho user
     await this.usersService.updateProfile(userId, { avatarUrl: publicUrl });
 
     return { success: true, avatarUrl: publicUrl };
