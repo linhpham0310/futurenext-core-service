@@ -140,12 +140,32 @@ describe('TeacherProfilesService', () => {
     const userId = 'user-123';
     const dto = { bio: 'Updated Bio' };
 
-    it('should throw NotFoundException if profile does not exist', async () => {
+    it('should create new profile if not exists', async () => {
       mockTeacherProfileRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.updateProfile(userId, dto)).rejects.toThrow(
-        NotFoundException,
-      );
+      const newProfile = {
+        id: 'new-profile-id',
+        userId,
+        bio: dto.bio,
+        expertise: dto.expertise || [],
+        status: TeacherProfileStatus.PENDING_REVIEW,
+      };
+      mockTeacherProfileRepo.create.mockReturnValue(newProfile);
+      mockTeacherProfileRepo.save.mockResolvedValue(newProfile);
+
+      const result = await service.updateProfile(userId, dto);
+
+      expect(mockTeacherProfileRepo.findOne).toHaveBeenCalledWith({
+        where: { userId },
+      });
+      expect(mockTeacherProfileRepo.create).toHaveBeenCalledWith({
+        userId,
+        bio: dto.bio,
+        expertise: dto.expertise || [],
+        status: TeacherProfileStatus.PENDING_REVIEW,
+      });
+      expect(mockTeacherProfileRepo.save).toHaveBeenCalledWith(newProfile);
+      expect(result).toEqual(newProfile);
     });
 
     it('should throw BadRequestException if status is not PENDING', async () => {
