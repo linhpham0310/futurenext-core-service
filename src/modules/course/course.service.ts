@@ -381,15 +381,17 @@ export class CourseService {
       page = 1,
       limit = 10,
       q = '',
-      category, // thêm
-      level, // thêm
-      minPrice, // thêm
-      maxPrice, // thêm
-      rating, // thêm
-      sortBy, // thêm
+      category,
+      level,
+      minPrice,
+      maxPrice,
+      rating,
+      sortBy,
     } = query;
 
-    const skip = (page - 1) * limit;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
     const where: any = { status: 'APPROVED' };
 
     // Tìm kiếm
@@ -413,36 +415,30 @@ export class CourseService {
     // Filter theo giá
     if (minPrice !== undefined || maxPrice !== undefined) {
       where.price = {};
-      if (minPrice !== undefined) where.price.gte = minPrice;
-      if (maxPrice !== undefined) where.price.lte = maxPrice;
+      if (minPrice !== undefined) where.price.gte = Number(minPrice);
+      if (maxPrice !== undefined) where.price.lte = Number(maxPrice);
     }
 
-    // Filter theo rating (tối thiểu)
+    // Filter theo rating (tối thiểu) — placeholder, chưa triển khai
     if (rating) {
-      // Cần tính rating trung bình từ reviews, nhưng có thể dùng trường rating có sẵn nếu có
-      // Giả sử course có trường rating (có thể tính từ reviews)
-      // Nếu chưa có, cần thêm vào model hoặc tính trong query
-      // Tạm thời bỏ qua hoặc dùng subquery
-      // Đây là placeholder, bạn cần điều chỉnh theo schema thực tế
+      // TODO: cần tính rating trung bình từ reviews hoặc thêm field vào schema
     }
 
     // Sắp xếp
+    // Lưu ý: Course model không có field `students`/`rating` trực tiếp (đều là giá trị tính toán),
+    // nên không thể orderBy trực tiếp qua Prisma. Tạm thời fallback về createdAt để tránh lỗi 500;
+    // muốn sort đúng theo popular/trending cần tính toán riêng (raw query hoặc sort ở tầng application).
     let orderBy: any = { createdAt: 'desc' };
-    if (sortBy === 'popular') {
-      // Sắp xếp theo số học viên (students) hoặc số lượng purchase
-      orderBy = { students: 'desc' };
-    } else if (sortBy === 'newest') {
+    if (sortBy === 'newest') {
       orderBy = { createdAt: 'desc' };
-    } else if (sortBy === 'trending') {
-      // Có thể sắp xếp theo lượt xem hoặc đánh giá gần đây
-      orderBy = { rating: 'desc' };
     }
+    // 'popular' và 'trending' tạm thời dùng chung createdAt, xử lý đúng ở bước sau nếu cần
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.course.findMany({
         where,
         skip,
-        take: limit,
+        take: limitNum,
         orderBy,
         include: {
           instructor: {
@@ -464,7 +460,12 @@ export class CourseService {
 
     return {
       data: mapped,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
     };
   }
 
