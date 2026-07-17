@@ -262,28 +262,31 @@ export class TeacherProfilesService {
   }
 
   async updateProfile(userId: string, dto: UpdateTeacherProfileDto) {
-    // Upsert: nếu chưa có thì tạo mới với status PENDING_REVIEW
-    const profile = await this.teacherProfileRepo.upsert(
-      {
+    // Tìm profile hiện có
+    let profile = await this.teacherProfileRepo.findOne({ where: { userId } });
+
+    if (!profile) {
+      // Nếu chưa có → tạo mới với status PENDING_REVIEW
+      profile = this.teacherProfileRepo.create({
         userId,
         bio: dto.bio,
         expertise: dto.expertise || [],
         status: TeacherProfileStatus.PENDING_REVIEW,
-      },
-      {
-        conflictPaths: ['userId'], // nếu userId đã tồn tại thì update
-        skipUpdateIfNoValuesChanged: true,
-      },
-    );
+      });
+    } else {
+      // Nếu đã có → chỉ cho update khi status PENDING_REVIEW
+      if (profile.status !== TeacherProfileStatus.PENDING_REVIEW) {
+        throw new BadRequestException(
+          'Chỉ có thể cập nhật khi hồ sơ đang chờ duyệt',
+        );
+      }
+      // Cập nhật các trường
+      if (dto.bio !== undefined) profile.bio = dto.bio;
+      if (dto.expertise !== undefined) profile.expertise = dto.expertise;
+    }
 
-    // Lấy lại profile sau upsert (TypeORM upsert trả về raw, cần findOne)
-    const updated = await this.teacherProfileRepo.findOne({
-      where: { userId },
-      relations: ['user'],
-    });
-    if (!updated) throw new NotFoundException('Không thể tạo/cập nhật hồ sơ');
-
-    return updated;
+    // Lưu
+    return this.teacherProfileRepo.save(profile);
   }
 
   async deleteProfile(profileId: string, adminId: string) {
